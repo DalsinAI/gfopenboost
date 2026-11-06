@@ -147,7 +147,7 @@ if [ ! -f "$OUT/boosttest" ] || [ "$HERE/tests/boosttest.cpp" -nt "$OUT/boosttes
         -lboost_program_options -lboost_json -lboost_url -lboost_locale -lboost_filesystem -lboost_iostreams \
         -lboost_serialization -lboost_regex -lboost_timer -lboost_chrono -lboost_thread -lboost_date_time \
         -lboost_container -lboost_charconv -lboost_random -lboost_asio -lboost_atomic \
-        -lpthread -lsocket ${TEST_LIBS:-} > "$WORK/test-link.log" 2>&1 \
+        -lpthread -lsocket -latomic ${TEST_LIBS:-} > "$WORK/test-link.log" 2>&1 \
         || { log "test link failed"; grep -E 'undefined|error' "$WORK/test-link.log" | sort | uniq | head -40 | cut -c1-300; exit 1; }
     log "boosttest: $(wc -c < "$OUT/boosttest") bytes"
 fi
