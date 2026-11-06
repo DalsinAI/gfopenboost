@@ -26,6 +26,11 @@
 #include <boost/atomic.hpp>
 #include <boost/asio.hpp>
 #include <cstdio>
+#include <cstdarg>
+#include <cerrno>
+#include <sys/time.h>
+#include <pthread.h>
+#include <chrono>
 #include <cstring>
 #include <sstream>
 #include <string>
@@ -57,12 +62,58 @@ template <class F> static void guarded(const char *what, F f)
     }
 }
 
+// "diag" group: timing checks for the waits. Each line is appended to
+// T:boostdiag.txt and the file closed again, so it can be read while the
+// program is stuck.
+static void dlog(const char *fmt, ...)
+{
+    char b[256]; va_list ap; va_start(ap, fmt); std::vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
+    std::printf("%s\n", b); std::fflush(stdout);
+    if (FILE *f = std::fopen("T:boostdiag.txt", "a")) { std::fprintf(f, "%s\n", b); std::fclose(f); }
+}
+static long long ms_rt() { timespec t; clock_gettime(CLOCK_REALTIME, &t); return t.tv_sec * 1000LL + t.tv_nsec / 1000000; }
+static long long ms_tod() { timeval t; gettimeofday(&t, nullptr); return t.tv_sec * 1000LL + t.tv_usec / 1000; }
+static long long ms_std() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+static long long ms_bst() { return boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now().time_since_epoch()).count(); }
+
+static void diag()
+{
+    dlog("d1 realtime %lld ms, gettimeofday %lld ms, diff %lld ms", ms_rt(), ms_tod(), ms_rt() - ms_tod());
+    { long long a = ms_rt(), b = ms_tod(), c = ms_std(), d = ms_bst();
+      timespec ts = {0, 100000000}; nanosleep(&ts, nullptr);
+      dlog("d2 nanosleep 100 ms: realtime %lld, tod %lld, std::steady %lld, boost::steady %lld",
+           ms_rt() - a, ms_tod() - b, ms_std() - c, ms_bst() - d); }
+    { dlog("d3 pthread_cond_timedwait +100 ms (clock_gettime deadline) ...");
+      pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; pthread_cond_t c = PTHREAD_COND_INITIALIZER;
+      timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 100000000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
+      long long a = ms_tod(); pthread_mutex_lock(&m); int rc = pthread_cond_timedwait(&c, &m, &dl); pthread_mutex_unlock(&m);
+      dlog("d3 rc %d after %lld ms", rc, ms_tod() - a); }
+    { dlog("d4 select() no fds, 50 ms ...");
+      timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(0, nullptr, nullptr, nullptr, &tv);
+      dlog("d4 rc %d errno %d after %lld ms", rc, rc < 0 ? errno : 0, ms_tod() - a); }
+    { dlog("d5 select() on a UDP socket, 50 ms ...");
+      int s = ::socket(AF_INET, SOCK_DGRAM, 0); fd_set r; FD_ZERO(&r); if (s >= 0) FD_SET(s, &r);
+      timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(s + 1, &r, nullptr, nullptr, &tv);
+      dlog("d5 socket %d rc %d errno %d after %lld ms", s, rc, rc < 0 ? errno : 0, ms_tod() - a); if (s >= 0) ::close(s); }
+    { dlog("d6 boost::this_thread::sleep_for 100 ms ...");
+      long long a = ms_tod(); boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+      dlog("d6 back after %lld ms", ms_tod() - a); }
+    { dlog("d7 cpu_timer ..."); boost::timer::cpu_timer t; dlog("d7 elapsed wall %lld ns", (long long)t.elapsed().wall); }
+    { dlog("d8 asio io_context + steady_timer 50 ms ...");
+      boost::asio::io_context io; dlog("d8 io_context made");
+      boost::asio::steady_timer t(io, std::chrono::milliseconds(50)); bool fired = false;
+      t.async_wait([&](const boost::system::error_code &) { fired = true; });
+      long long a = ms_tod(); io.run(); dlog("d8 fired %d after %lld ms", (int)fired, ms_tod() - a); }
+    dlog("diag done");
+}
+
 int main(int argc, char **argv)
 {
     std::printf("boosttest: Boost %s\n", BOOST_LIB_VERSION);
     std::fflush(stdout);
     if (argc > 1)
         only = argv[1];
+    if (only && std::strcmp(only, "diag") == 0) { diag(); return 0; }
 
     guarded("filesystem", [] {
         namespace fs = boost::filesystem;
