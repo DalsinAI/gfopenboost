@@ -8,7 +8,6 @@
 #include <boost/thread.hpp>
 #include <boost/thread/future.hpp>
 #include <boost/regex.hpp>
-#include <boost/cregex.hpp>
 #include <boost/program_options.hpp>
 #include <boost/json.hpp>
 #include <boost/url.hpp>
@@ -105,8 +104,6 @@ int main(int argc, char **argv)
         check("regex search", boost::regex_search(s, m, r) && m[2] == "example");
         std::string big(20000, 'a');
         check("regex long input", boost::regex_match(big, boost::regex("a*")));
-        boost::regex_tA re; check("regex posix api", boost::regcompA(&re, "^ab+c$", boost::REG_EXTENDED) == 0
-            && boost::regexecA(&re, "abbbc", 0, 0, 0) == 0); boost::regfreeA(&re);
     });
 
     guarded("program_options", [] {

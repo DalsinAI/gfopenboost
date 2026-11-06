@@ -62,7 +62,7 @@ json|-DBOOST_JSON_SOURCE -DBOOST_JSON_STATIC_LINK|src.cpp
 locale|-DBOOST_LOCALE_SOURCE -DBOOST_LOCALE_STATIC_LINK -DBOOST_LOCALE_NO_POSIX_BACKEND -DBOOST_LOCALE_NO_WINAPI_BACKEND -DBOOST_THREAD_USE_LIB|encoding/codepage.cpp shared/date_time.cpp shared/format.cpp shared/formatting.cpp shared/generator.cpp shared/ids.cpp shared/localization_backend.cpp shared/message.cpp shared/mo_lambda.cpp std/codecvt.cpp std/collate.cpp std/converter.cpp std/numeric.cpp std/std_backend.cpp util/codecvt_converter.cpp util/default_locale.cpp util/encoding.cpp util/gregorian.cpp util/info.cpp util/locale_data.cpp
 program_options|-DBOOST_PROGRAM_OPTIONS_SOURCE -DBOOST_PROGRAM_OPTIONS_STATIC_LINK|cmdline.cpp config_file.cpp convert.cpp options_description.cpp parsers.cpp positional_options.cpp split.cpp utf8_codecvt_facet.cpp value_semantic.cpp variables_map.cpp
 random|-DBOOST_RANDOM_SOURCE -DBOOST_RANDOM_STATIC_LINK|random_device.cpp
-regex|-DBOOST_REGEX_SOURCE|posix_api.cpp wide_posix_api.cpp
+regex||@empty.cpp
 serialization|-DBOOST_SERIALIZATION_SOURCE -DBOOST_SERIALIZATION_STATIC_LINK|archive_exception.cpp basic_archive.cpp basic_iarchive.cpp basic_iserializer.cpp basic_oarchive.cpp basic_oserializer.cpp basic_pointer_iserializer.cpp basic_pointer_oserializer.cpp basic_serializer_map.cpp basic_text_iprimitive.cpp basic_text_oprimitive.cpp basic_xml_archive.cpp binary_iarchive.cpp binary_oarchive.cpp codecvt_null.cpp extended_type_info.cpp extended_type_info_no_rtti.cpp extended_type_info_typeid.cpp polymorphic_binary_iarchive.cpp polymorphic_binary_oarchive.cpp polymorphic_iarchive.cpp polymorphic_oarchive.cpp polymorphic_text_iarchive.cpp polymorphic_text_oarchive.cpp polymorphic_xml_iarchive.cpp polymorphic_xml_oarchive.cpp stl_port.cpp text_iarchive.cpp text_oarchive.cpp utf8_codecvt_facet.cpp void_cast.cpp xml_archive_exception.cpp xml_grammar.cpp xml_iarchive.cpp xml_oarchive.cpp
 wserialization|-DBOOST_WSERIALIZATION_SOURCE -DBOOST_SERIALIZATION_STATIC_LINK -DBOOST_WSERIALIZATION_STATIC_LINK|basic_text_wiprimitive.cpp basic_text_woprimitive.cpp binary_wiarchive.cpp binary_woarchive.cpp polymorphic_text_wiarchive.cpp polymorphic_text_woarchive.cpp polymorphic_xml_wiarchive.cpp polymorphic_xml_woarchive.cpp text_wiarchive.cpp text_woarchive.cpp xml_wgrammar.cpp xml_wiarchive.cpp xml_woarchive.cpp
 stacktrace_noop|-DBOOST_STACKTRACE_INTERNAL_BUILD_LIBS -DBOOST_STACKTRACE_LINK|noop.cpp
@@ -132,7 +132,9 @@ for part in $(echo "$PARTS" | awk -F'|' 'NF>1 {print $1}'); do
         done
         failed="$failed $part"; continue
     fi
-    rm -f "$a"; $AR rcs "$a" "$od"/*.o
+    # only this part's listed objects, never stale ones from an older list
+    objs=$(for s in $srcs; do echo "$od/$(echo "${s#$B/libs/}" | tr / _ | sed 's/\.c[p]*$/.o/')"; done)
+    rm -f "$a"; $AR rcs "$a" $objs
     log "$part: $(echo "$srcs" | wc -w) objects, $(wc -c < "$a") bytes"
 done
 [ -z "$failed" ] || { log "failed:$failed"; exit 1; }

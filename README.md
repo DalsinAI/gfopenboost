@@ -45,10 +45,15 @@ run goes on from its objects. The result is `WORK/sdk`, packed as
 
 atomic, charconv, chrono, container, date_time, filesystem, iostreams
 (file_descriptor, zlib, gzip), json, locale, program_options, random,
-regex (its POSIX API; the rest is header-only), serialization,
+regex (header-only; an empty library so `-lboost_regex` still links),
+serialization,
 wserialization, stacktrace_noop, thread, timer, url, asio (separate
 compilation) and system (header-only; an empty library so `-lboost_system`
 still links).
+
+Boost.Regex's C API (`regcomp`/`regexec`, `posix_api.cpp` and
+`wide_posix_api.cpp`) is not built: C callers use `<regex.h>` and `-lregex`
+from regex.library (GFOpenRegex), so there is one regex engine for C code.
 
 Not built: context, coroutine, fiber and cobalt (need m68k context-switch
 code), log, test, wave, graph, graph_parallel, mpi, python, process, nowide
