@@ -1,0 +1,318 @@
+--- a/libs/locale/src/encoding/amiga_converter.hpp	1970-01-01 00:00:00.000000000 +0000
++++ b/libs/locale/src/encoding/amiga_converter.hpp	2026-11-06 16:10:13.085379507 +0000
+@@ -0,0 +1,219 @@
++//
++// GFOpenBoost: charset conversion on AmigaOS without iconv or ICU.
++// UTF-8, US-ASCII, ISO-8859-1 (the Amiga's own), ISO-8859-15 and
++// windows-1252, from our own tables. Boost's simple code pages can't be used:
++// they build their tables through this very converter.
++// Copyright (c) 2026 AmiCradle Team
++// Distributed under the Boost Software License, Version 1.0.
++#ifndef BOOST_LOCALE_IMPL_AMIGA_CONVERTER_HPP
++#define BOOST_LOCALE_IMPL_AMIGA_CONVERTER_HPP
++
++#include <boost/locale/detail/encoding.hpp>
++#include <boost/locale/encoding_errors.hpp>
++#include <boost/locale/utf.hpp>
++#include "../util/encoding.hpp"
++#include <iterator>
++#include <memory>
++#include <string>
++
++namespace boost { namespace locale { namespace conv { namespace impl {
++
++    // One side of a conversion: UTF-8 or an 8-bit code page.
++    class amiga_charset {
++        enum { none, utf8, ascii, latin1, latin9, cp1252 } kind_ = none;
++
++        static const utf::code_point* cp1252_high()
++        {
++            static const utf::code_point t[32] = {
++              0x20AC, utf::illegal, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
++              0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, utf::illegal, 0x017D, utf::illegal,
++              utf::illegal, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++              0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, utf::illegal, 0x017E, 0x0178};
++            return t;
++        }
++        // ISO-8859-15 differs from ISO-8859-1 at these eight places
++        static utf::code_point latin9_cp(unsigned char b)
++        {
++            switch(b) {
++                case 0xA4: return 0x20AC;
++                case 0xA6: return 0x0160;
++                case 0xA8: return 0x0161;
++                case 0xB4: return 0x017D;
++                case 0xB8: return 0x017E;
++                case 0xBC: return 0x0152;
++                case 0xBD: return 0x0153;
++                case 0xBE: return 0x0178;
++                default: return b;
++            }
++        }
++        utf::code_point to_cp(unsigned char b) const
++        {
++            switch(kind_) {
++                case ascii: return b < 0x80 ? utf::code_point(b) : utf::illegal;
++                case latin9: return latin9_cp(b);
++                case cp1252: return (b >= 0x80 && b < 0xA0) ? cp1252_high()[b - 0x80] : utf::code_point(b);
++                default: return b;
++            }
++        }
++        int from_cp(utf::code_point c) const
++        {
++            if(c < 0x80)
++                return int(c);
++            switch(kind_) {
++                case ascii: return -1;
++                case latin1: return c < 0x100 ? int(c) : -1;
++                case latin9:
++                    for(int b = 0xA0; b < 0x100; b++)
++                        if(latin9_cp(static_cast<unsigned char>(b)) == c)
++                            return b;
++                    return -1;
++                case cp1252:
++                    if(c >= 0xA0 && c < 0x100)
++                        return int(c);
++                    for(int i = 0; i < 32; i++)
++                        if(cp1252_high()[i] == c)
++                            return 0x80 + i;
++                    return -1;
++                default: return -1;
++            }
++        }
++
++    public:
++        bool open(const std::string& cs)
++        {
++            const std::string n = util::normalize_encoding(cs);
++            if(n == "utf8")
++                kind_ = utf8;
++            else if(n == "usascii" || n == "ascii")
++                kind_ = ascii;
++            else if(n == "iso88591" || n == "latin1" || n == "isolatin1")
++                kind_ = latin1;
++            else if(n == "iso885915" || n == "latin9")
++                kind_ = latin9;
++            else if(n == "windows1252" || n == "cp1252")
++                kind_ = cp1252;
++            else
++                kind_ = none;
++            return kind_ != none;
++        }
++        utf::code_point get(const char*& b, const char* e)
++        {
++            if(kind_ == utf8)
++                return utf::utf_traits<char>::decode(b, e);
++            const utf::code_point c = to_cp(static_cast<unsigned char>(*b));
++            if(c != utf::illegal)
++                ++b;
++            return c;
++        }
++        bool put(utf::code_point c, std::string& out)
++        {
++            if(kind_ == utf8) {
++                if(!utf::is_valid_codepoint(c))
++                    return false;
++                utf::utf_traits<char>::encode(c, std::back_inserter(out));
++                return true;
++            }
++            const int b = from_cp(c);
++            if(b < 0)
++                return false;
++            out += static_cast<char>(b);
++            return true;
++        }
++    };
++
++    inline bool amiga_bad(utf::code_point c) { return c == utf::illegal || c == utf::incomplete; }
++
++    class amiga_between final : public detail::narrow_converter {
++        amiga_charset to_, from_;
++        method_type how_ = default_method;
++
++    public:
++        bool open(const std::string& to, const std::string& from, method_type how)
++        {
++            how_ = how;
++            return to_.open(to) && from_.open(from);
++        }
++        std::string convert(const char* begin, const char* end) override
++        {
++            std::string out;
++            while(begin != end) {
++                const utf::code_point c = from_.get(begin, end);
++                if(amiga_bad(c)) {
++                    if(how_ == stop)
++                        throw conversion_error();
++                    if(c == utf::incomplete)
++                        break;
++                    ++begin;
++                    continue;
++                }
++                if(!to_.put(c, out) && how_ == stop)
++                    throw conversion_error();
++            }
++            return out;
++        }
++    };
++
++    template<typename CharType>
++    class amiga_to_utf final : public detail::utf_encoder<CharType> {
++        amiga_charset from_;
++        method_type how_ = default_method;
++
++    public:
++        bool open(const std::string& cs, method_type how)
++        {
++            how_ = how;
++            return from_.open(cs);
++        }
++        std::basic_string<CharType> convert(const char* begin, const char* end) override
++        {
++            std::basic_string<CharType> out;
++            while(begin != end) {
++                const utf::code_point c = from_.get(begin, end);
++                if(amiga_bad(c)) {
++                    if(how_ == stop)
++                        throw conversion_error();
++                    if(c == utf::incomplete)
++                        break;
++                    ++begin;
++                    continue;
++                }
++                utf::utf_traits<CharType>::encode(c, std::back_inserter(out));
++            }
++            return out;
++        }
++    };
++
++    template<typename CharType>
++    class amiga_from_utf final : public detail::utf_decoder<CharType> {
++        amiga_charset to_;
++        method_type how_ = default_method;
++
++    public:
++        bool open(const std::string& cs, method_type how)
++        {
++            how_ = how;
++            return to_.open(cs);
++        }
++        std::string convert(const CharType* begin, const CharType* end) override
++        {
++            std::string out;
++            while(begin != end) {
++                const utf::code_point c = utf::utf_traits<CharType>::decode(begin, end);
++                if(amiga_bad(c)) {
++                    if(how_ == stop)
++                        throw conversion_error();
++                    if(c == utf::incomplete)
++                        break;
++                    ++begin;
++                    continue;
++                }
++                if(!to_.put(c, out) && how_ == stop)
++                    throw conversion_error();
++            }
++            return out;
++        }
++    };
++
++}}}} // namespace boost::locale::conv::impl
++
++#endif
+--- a/libs/locale/src/encoding/codepage.cpp	2026-11-06 16:08:33.659765175 +0000
++++ b/libs/locale/src/encoding/codepage.cpp	2026-11-06 16:08:33.680306207 +0000
+@@ -20,6 +20,9 @@
+ #ifdef BOOST_LOCALE_WITH_WCONV
+ #    include "wconv_converter.hpp"
+ #endif
++#ifdef __amigaos__
++#    include "amiga_converter.hpp"
++#endif
+ 
+ namespace boost { namespace locale { namespace conv {
+ 
+@@ -50,6 +53,13 @@
+                 return cvt.convert(begin, end);
+         }
+ #endif
++#ifdef __amigaos__
++        {
++            impl::amiga_between cvt;
++            if(cvt.open(to_charset, from_charset, how))
++                return cvt.convert(begin, end);
++        }
++#endif
+         throw invalid_charset_error(std::string(to_charset) + " or " + from_charset);
+     }
+ 
+@@ -77,6 +87,13 @@
+                 return cvt.convert(begin, end);
+         }
+ #endif
++#ifdef __amigaos__
++        {
++            impl::amiga_to_utf<CharType> cvt;
++            if(cvt.open(charset, how))
++                return cvt.convert(begin, end);
++        }
++#endif
+         throw invalid_charset_error(charset);
+     }
+ 
+@@ -104,6 +121,13 @@
+                 return cvt.convert(begin, end);
+         }
+ #endif
++#ifdef __amigaos__
++        {
++            impl::amiga_from_utf<CharType> cvt;
++            if(cvt.open(charset, how))
++                return cvt.convert(begin, end);
++        }
++#endif
+         throw invalid_charset_error(charset);
+     }
+ 
+@@ -139,6 +163,13 @@
+                     return move_to_ptr(cvt);
+             }
+ #endif
++#ifdef __amigaos__
++            {
++                impl::amiga_to_utf<Char> cvt;
++                if(cvt.open(charset, how))
++                    return move_to_ptr(cvt);
++            }
++#endif
+             throw invalid_charset_error(charset);
+         }
+ 
+@@ -167,6 +198,13 @@
+                     return move_to_ptr(cvt);
+             }
+ #endif
++#ifdef __amigaos__
++            {
++                impl::amiga_from_utf<Char> cvt;
++                if(cvt.open(charset, how))
++                    return move_to_ptr(cvt);
++            }
++#endif
+             throw invalid_charset_error(charset);
+         }
+         std::unique_ptr<narrow_converter> make_narrow_converter(const std::string& src_encoding,
+@@ -194,6 +232,13 @@
+                 if(cvt.open(target_encoding, src_encoding, how))
+                     return move_to_ptr(cvt);
+             }
++#endif
++#ifdef __amigaos__
++            {
++                impl::amiga_between cvt;
++                if(cvt.open(target_encoding, src_encoding, how))
++                    return move_to_ptr(cvt);
++            }
+ #endif
+             throw invalid_charset_error(std::string(src_encoding) + " or " + target_encoding);
+         }

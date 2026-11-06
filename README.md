@@ -86,6 +86,11 @@ turns threads and `std::wstring` off. It merges what each port carried:
 bytes, the most an Amiga hunk file allows, and Filesystem's `/` adds no
 separator after a volume's colon (`"Work:" / "dir"` is `Work:dir`).
 
+`patches/parts/PART/` edits one part's sources, and a change there rebuilds
+only that part: Locale converts charsets without iconv or ICU (UTF-8,
+US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252, from our own tables) in
+`conv::to_utf`, `from_utf`, `between` and the converter classes.
+
 `compat/src/` adds what libnix lacks, inside the part that needs it:
 `statvfs()` on dos.library `Info()` and `fchmod()` on `NameFromFH()` (Filesystem),
 C++-named `clock_gettime()`/`statvfs()` forwarders (libnix's headers
@@ -94,8 +99,9 @@ declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
 
 ## Known limits
 
-- Locale uses its std backend (C locale, UTF-8 and the codepages Boost
-  knows); a backend on unicode.library and locale.library is the next step.
+- Locale uses its std backend (C locale); charset conversion covers UTF-8,
+  US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252. Other charsets and a
+  backend on unicode.library and locale.library are the next step.
 - Filesystem paths are libnix's (on dos.library): `Work:dir/file` works and
   `/` joins after a volume, but `root_name()` does not know volumes yet.
 - Asio is IPv4 only, as the stack is.

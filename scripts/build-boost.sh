@@ -24,7 +24,7 @@ CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB $INCF"
 CF="$CPU -std=gnu99 -D_DEFAULT_SOURCE $INCF"
 
 # ---- headers: the release, our config over it, our edits
-hkey=$( (echo "$BOOST_SHA256"; cd "$HERE" && cat $(find config patches -type f | sort)) | sha256sum | cut -c1-16)
+hkey=$( (echo "$BOOST_SHA256"; cd "$HERE" && cat $(find config patches/headers patches/src -type f | sort)) | sha256sum | cut -c1-16)
 if [ "$(cat "$WORK/.headers" 2>/dev/null)" != "$hkey" ]; then
     T="$WORK/dl/boost-$V.tar.xz"
     if [ ! -f "$T" ] || ! echo "$BOOST_SHA256  $T" | sha256sum -c - >/dev/null 2>&1; then
@@ -75,6 +75,26 @@ system||@empty.cpp
 # where a part's sources live
 libdir() { case "$1" in wserialization) echo serialization ;; stacktrace_noop) echo stacktrace ;; *) echo "$1" ;; esac; }
 
+# ---- per-part source edits (patches/parts/PART/*.patch): a change rebuilds
+# only that part. The files they touch are put back from a saved original
+# (or removed, when a patch adds them) before the set is applied again.
+part_patches() {
+    pd="$HERE/patches/parts/$1"; [ -d "$pd" ] || return 0
+    pkey=$(cat "$pd"/*.patch | sha256sum | cut -c1-16)
+    [ "$(cat "$OBJ/$1/.pkey" 2>/dev/null)" = "$pkey" ] && return 0
+    for f in $(cat "$pd"/*.patch | sed -n 's|^+++ b/\([^[:space:]]*\).*|\1|p' | sort -u); do
+        if [ -f "$B/$f.gfob-orig" ]; then cp "$B/$f.gfob-orig" "$B/$f"
+        elif [ -f "$B/$f.gfob-new" ]; then rm -f "$B/$f"
+        elif [ -f "$B/$f" ]; then cp "$B/$f" "$B/$f.gfob-orig"
+        else : > "$B/$f.gfob-new"; fi
+    done
+    for p in "$pd"/*.patch; do
+        patch -s -d "$B" -p1 --no-backup-if-mismatch < "$p" || { log "patch did not apply: $1/$(basename "$p")"; exit 1; }
+    done
+    rm -rf "$OBJ/$1"; rm -f "$LIB/libboost_$1.a"; mkdir -p "$OBJ/$1"; echo "$pkey" > "$OBJ/$1/.pkey"
+    log "$1: source edits $pkey applied"
+}
+
 # generated sources (@name)
 G="$WORK/gen"; mkdir -p "$G"
 printf '// Boost.Asio, separately compiled (programs define BOOST_ASIO_SEPARATE_COMPILATION)\n#include <boost/asio/impl/src.hpp>\n' > "$G/asio_src.cpp"
@@ -97,6 +117,7 @@ sources() {
 failed=""
 for part in $(echo "$PARTS" | awk -F'|' 'NF>1 {print $1}'); do
     a="$LIB/libboost_$part.a"
+    part_patches "$part"
     [ -f "$a" ] && continue
     [ "$(left)" -gt 180 ] || { log "time cap: $part and later go on next run"; exit 0; }
     defs=$(echo "$PARTS" | awk -F'|' -v p="$part" '$1==p {print $2}')
