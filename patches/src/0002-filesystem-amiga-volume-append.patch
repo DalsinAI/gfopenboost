@@ -1,13 +1,13 @@
---- a/libs/filesystem/src/path.cpp	2026-11-06 09:25:54.328005328 +0000
-+++ b/libs/filesystem/src/path.cpp	2026-11-06 09:25:54.349769844 +0000
-@@ -621,7 +621,9 @@
- {
-     string_type::size_type size(p.m_pathname.size());
+--- a/libs/filesystem/src/path.cpp	2026-11-06 09:51:14.380480805 +0000
++++ b/libs/filesystem/src/path.cpp	2026-11-06 09:51:14.467837936 +0000
+@@ -623,6 +623,10 @@
      if (size > static_cast< string_type::size_type >(0) &&
--#ifdef BOOST_WINDOWS_API
-+#if defined(BOOST_WINDOWS_API) || defined(__amigaos__)
+ #ifdef BOOST_WINDOWS_API
+         p.m_pathname[size - 1] != colon &&
++#elif defined(__amigaos__)
 +        // AmigaOS: "Work:" / "dir" is "Work:dir"; a '/' after the colon
 +        // would mean the volume's parent
-         p.m_pathname[size - 1] != colon &&
++        p.m_pathname[size - 1] != static_cast< path::value_type >(':') &&
  #endif
          !detail::is_directory_separator(p.m_pathname[size - 1]))
+     {
