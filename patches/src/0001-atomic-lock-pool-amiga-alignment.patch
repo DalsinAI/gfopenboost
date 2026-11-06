@@ -1,0 +1,13 @@
+diff -ru a/libs/atomic/src/lock_pool.cpp b/libs/atomic/src/lock_pool.cpp
+--- a/libs/atomic/src/lock_pool.cpp	2026-11-06 07:57:30.247157127 +0000
++++ b/libs/atomic/src/lock_pool.cpp	2026-11-06 07:57:30.263564880 +0000
+@@ -91,6 +91,9 @@
+ #define BOOST_ATOMIC_CACHE_LINE_SIZE 256
+ #elif defined(powerpc) || defined(__powerpc__) || defined(__ppc__)
+ #define BOOST_ATOMIC_CACHE_LINE_SIZE 128
++#elif defined(__amigaos__)
++// the 68040's lines are 16 bytes, but Amiga hunk files align to 8 at most
++#define BOOST_ATOMIC_CACHE_LINE_SIZE 8
+ #else
+ #define BOOST_ATOMIC_CACHE_LINE_SIZE 64
+ #endif

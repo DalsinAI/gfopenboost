@@ -14,7 +14,7 @@ edits over it, and builds.
     STOVE=.../stoves/os32-gcc16-open6 OUT=out ./build-amiga.sh
 
 The work tree is `~/.cache/gfopenboost/build` (`WORK=` to change it). A run
-that reaches the time cap (`BUDGET_TOTAL`, 840 s) stops cleanly and the next
+that reaches the time cap (`BUDGET_TOTAL`, 780 s) stops cleanly and the next
 run goes on from its objects. The result is `WORK/sdk`, packed as
 `OUT/gfopenboost-1.89.0-sdk.tar.xz`:
 
@@ -45,10 +45,15 @@ run goes on from its objects. The result is `WORK/sdk`, packed as
 
 atomic, charconv, chrono, container, date_time, filesystem, iostreams
 (file_descriptor, zlib, gzip), json, locale, program_options, random,
-regex (its POSIX API; the rest is header-only), serialization,
+regex (header-only; an empty library so `-lboost_regex` still links),
+serialization,
 wserialization, stacktrace_noop, thread, timer, url, asio (separate
 compilation) and system (header-only; an empty library so `-lboost_system`
 still links).
+
+Boost.Regex's C API (`regcomp`/`regexec`, `posix_api.cpp` and
+`wide_posix_api.cpp`) is not built: C callers use `<regex.h>` and `-lregex`
+from regex.library (GFOpenRegex), so there is one regex engine for C code.
 
 Not built: context, coroutine, fiber and cobalt (need m68k context-switch
 code), log, test, wave, graph, graph_parallel, mpi, python, process, nowide
@@ -77,21 +82,36 @@ turns threads and `std::wstring` off. It merges what each port carried:
 - Asio: waits with `select()` (as on Symbian), wakes with a socket pair,
   and takes the network names from `amigaos_net.hpp`.
 
-`patches/src/` edits one compiled source: Atomic's lock pool aligns to 8
-bytes, the most an Amiga hunk file allows.
+`patches/src/` edits compiled sources: Atomic's lock pool aligns to 8
+bytes, the most an Amiga hunk file allows, and Filesystem's `/` adds no
+separator after a volume's colon (`"Work:" / "dir"` is `Work:dir`).
+
+`patches/parts/PART/` edits one part's sources, and a change there rebuilds
+only that part: Locale converts charsets without iconv or ICU (UTF-8,
+US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252, from our own tables) in
+`conv::to_utf`, `from_utf`, `between` and the converter classes. Timer
+takes wall time from `gettimeofday()` (libnix's `times()` returns CPU
+milliseconds while `sysconf(_SC_CLK_TCK)` says 50, so `cpu_timer` read
+twenty times too long).
 
 `compat/src/` adds what libnix lacks, inside the part that needs it:
 `statvfs()` on dos.library `Info()` and `fchmod()` on `NameFromFH()` (Filesystem),
-C++-named `clock_gettime()`/`statvfs()` forwarders (libnix's headers
+a `clock_gettime()` on `gettimeofday()` (Thread and Chrono: libnix's reads
+the local-time Amiga clock without the time zone, so Boost's timed waits
+missed the pthread library's clock by the zone offset), C++-named
+`clock_gettime()`/`statvfs()` forwarders (libnix's headers
 declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
-`writev`/`if_nametoindex`/`pause` (Asio).
+`writev`/`if_nametoindex`/`pause` (Asio), and a `select()` for sockets
+straight onto bsdsocket.library's `WaitSelect()` (Asio: libnix's own
+`select()` never came back from a timed wait on a socket in the lab).
 
 ## Known limits
 
-- Locale uses its std backend (C locale, UTF-8 and the codepages Boost
-  knows); a backend on unicode.library and locale.library is the next step.
-- Filesystem paths are libnix's (on dos.library): `Work:dir/file` works as a
-  name, but `root_name()` does not know volumes.
+- Locale uses its std backend (C locale); charset conversion covers UTF-8,
+  US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252. Other charsets and a
+  backend on unicode.library and locale.library are the next step.
+- Filesystem paths are libnix's (on dos.library): `Work:dir/file` works and
+  `/` joins after a volume, but `root_name()` does not know volumes yet.
 - Asio is IPv4 only, as the stack is.
 - `random_device` reads `/dev/urandom`, which AmigaOS does not have.
 
