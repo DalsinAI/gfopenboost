@@ -88,22 +88,31 @@ static void diag()
       timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 100000000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
       long long a = ms_tod(); pthread_mutex_lock(&m); int rc = pthread_cond_timedwait(&c, &m, &dl); pthread_mutex_unlock(&m);
       dlog("d3 rc %d after %lld ms", rc, ms_tod() - a); }
-    { dlog("d4 select() no fds, 50 ms ...");
-      timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(0, nullptr, nullptr, nullptr, &tv);
-      dlog("d4 rc %d errno %d after %lld ms", rc, rc < 0 ? errno : 0, ms_tod() - a); }
+    { dlog("d6 boost::this_thread::sleep_for 100 ms ...");
+      long long a = ms_tod(); boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+      dlog("d6 back after %lld ms", ms_tod() - a); }
+    { dlog("d6b boost condition_variable wait_for 100 ms ...");
+      boost::mutex m; boost::condition_variable c; boost::unique_lock<boost::mutex> l(m);
+      long long a = ms_tod(); c.wait_for(l, boost::chrono::milliseconds(100));
+      dlog("d6b back after %lld ms", ms_tod() - a); }
+    { dlog("d6c pthread_cond_timedwait +10 ms x10 ...");
+      pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; pthread_cond_t c = PTHREAD_COND_INITIALIZER;
+      long long a = ms_tod(); pthread_mutex_lock(&m);
+      for (int i = 0; i < 10; i++) { timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 10000000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; } pthread_cond_timedwait(&c, &m, &dl); }
+      pthread_mutex_unlock(&m); dlog("d6c back after %lld ms", ms_tod() - a); }
+    { dlog("d7 cpu_timer ..."); boost::timer::cpu_timer t; dlog("d7 elapsed wall %lld ns", (long long)t.elapsed().wall); }
     { dlog("d5 select() on a UDP socket, 50 ms ...");
       int s = ::socket(AF_INET, SOCK_DGRAM, 0); fd_set r; FD_ZERO(&r); if (s >= 0) FD_SET(s, &r);
       timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(s + 1, &r, nullptr, nullptr, &tv);
       dlog("d5 socket %d rc %d errno %d after %lld ms", s, rc, rc < 0 ? errno : 0, ms_tod() - a); if (s >= 0) ::close(s); }
-    { dlog("d6 boost::this_thread::sleep_for 100 ms ...");
-      long long a = ms_tod(); boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-      dlog("d6 back after %lld ms", ms_tod() - a); }
-    { dlog("d7 cpu_timer ..."); boost::timer::cpu_timer t; dlog("d7 elapsed wall %lld ns", (long long)t.elapsed().wall); }
     { dlog("d8 asio io_context + steady_timer 50 ms ...");
       boost::asio::io_context io; dlog("d8 io_context made");
       boost::asio::steady_timer t(io, std::chrono::milliseconds(50)); bool fired = false;
       t.async_wait([&](const boost::system::error_code &) { fired = true; });
       long long a = ms_tod(); io.run(); dlog("d8 fired %d after %lld ms", (int)fired, ms_tod() - a); }
+    { dlog("d4 select() no fds, 50 ms ...");
+      timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(0, nullptr, nullptr, nullptr, &tv);
+      dlog("d4 rc %d errno %d after %lld ms", rc, rc < 0 ? errno : 0, ms_tod() - a); }
     dlog("diag done");
 }
 
