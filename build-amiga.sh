@@ -20,6 +20,8 @@ HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STOVE=${STOVE:-"$HOME/AmiCradle/stoves/os32-gcc16-open6"}
 TC=${TOOLCHAIN:-"$STOVE/prefix"}
 WORK=${WORK:-"$HOME/.cache/gfopenboost/build"}
+# compiler temporaries beside the work tree, not in /tmp
+TMPDIR="$WORK/tmp"; mkdir -p "$TMPDIR"; export TMPDIR
 OUT=${OUT:-"$WORK/out"}
 JOBS=${JOBS:-4}
 BUDGET=${BUDGET_TOTAL:-780}
