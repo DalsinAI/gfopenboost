@@ -1,0 +1,56 @@
+# Builds GFOpenBoost with the GFOpenAmigaGCC release and the Open SDK's NDK
+# headers, and publishes the SDK archive as a GitHub release.
+# Run it by hand (Actions > release > Run workflow) with the release tag.
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.89.0-1
+        required: true
+      prerelease:
+        description: Mark as pre-release
+        type: boolean
+        default: false
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GCC_TAG: v16.2.0-open6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain and NDK headers
+        run: |
+          mkdir -p "$RUNNER_TEMP/tc"
+          gh release download "$GCC_TAG" -R DalsinAI/gfopengcc -p 'gfopenamigagcc-*-x86_64-linux.tar.xz' -D "$RUNNER_TEMP/tc"
+          tar -C "$RUNNER_TEMP/tc" -xJf "$RUNNER_TEMP"/tc/gfopenamigagcc-*-x86_64-linux.tar.xz
+          gcc=$(find "$RUNNER_TEMP/tc" -path '*/bin/m68k-amigaos-gcc' | head -1)
+          test -n "$gcc"
+          echo "TOOLCHAIN=$(dirname "$(dirname "$gcc")")" >> "$GITHUB_ENV"
+          git clone -q --depth 1 https://github.com/DalsinAI/gfopensdk "$RUNNER_TEMP/gfopensdk"
+          echo "EXTRA_INC=$RUNNER_TEMP/gfopensdk/OpenNDK/Include_H" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          export PATH="$TOOLCHAIN/bin:$PATH"
+          WORK="$RUNNER_TEMP/work" OUT="$RUNNER_TEMP/out" BUDGET_TOTAL=100000 JOBS=4 ./build-amiga.sh
+          ls -l "$RUNNER_TEMP/out"
+      - name: Publish
+        run: |
+          O="$RUNNER_TEMP/out"
+          test -f "$O/gfopenboost-1.89.0-sdk.tar.xz"
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Boost 1.89.0 for AmigaOS 3 (68040, soft float): headers with the one Amiga config, 21 compiled parts as libboost_<part>.a and a CMake package (find_package(Boost 1.89 CONFIG)).
+
+          Built from ${GITHUB_SHA} with GFOpenAmigaGCC ${GCC_TAG}. boosttest (included) passed all 14 groups in a 68040 lab. See the README for linking (-latomic, -lpthread, -lsocket, BOOST_ASIO_SEPARATE_COMPILATION) and known limits.
+
+          Team 3
+          EOF
+          sed -i 's/^          //' "$RUNNER_TEMP/notes.md"
+          flag=""; [ "${{ inputs.prerelease }}" = "true" ] && flag="--prerelease"
+          gh release create "${{ inputs.tag }}" --target "$GITHUB_SHA" $flag \
+            --title "GFOpenBoost ${{ inputs.tag }}" --notes-file "$RUNNER_TEMP/notes.md" \
+            "$O/gfopenboost-1.89.0-sdk.tar.xz" "$O/gfopenboost-1.89.0-sdk.tar.xz.sha256" "$O/boost.txt" "$O/boosttest"
