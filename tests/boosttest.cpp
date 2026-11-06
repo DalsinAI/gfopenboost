@@ -102,7 +102,7 @@ static void diag()
       pthread_mutex_unlock(&m); dlog("d6c back after %lld ms", ms_tod() - a); }
     { dlog("d7 cpu_timer ..."); boost::timer::cpu_timer t; dlog("d7 elapsed wall %lld ns", (long long)t.elapsed().wall); }
     { dlog("d5 select() on a UDP socket, 50 ms ...");
-      int s = ::socket(AF_INET, SOCK_DGRAM, 0); fd_set r; FD_ZERO(&r); if (s >= 0) FD_SET(s, &r);
+      int s = ::socket(AF_INET, SOCK_DGRAM, 0); dlog("d5 socket() gave %d", s); fd_set r; FD_ZERO(&r); if (s >= 0) FD_SET(s, &r);
       timeval tv = {0, 50000}; long long a = ms_tod(); int rc = ::select(s + 1, &r, nullptr, nullptr, &tv);
       dlog("d5 socket %d rc %d errno %d after %lld ms", s, rc, rc < 0 ? errno : 0, ms_tod() - a); if (s >= 0) ::close(s); }
     { dlog("d8 asio io_context + steady_timer 50 ms ...");

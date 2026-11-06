@@ -98,7 +98,9 @@ the local-time Amiga clock without the time zone, so Boost's timed waits
 missed the pthread library's clock by the zone offset), C++-named
 `clock_gettime()`/`statvfs()` forwarders (libnix's headers
 declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
-`writev`/`if_nametoindex`/`pause` (Asio).
+`writev`/`if_nametoindex`/`pause` (Asio), and a `select()` for sockets
+straight onto bsdsocket.library's `WaitSelect()` (Asio: libnix's own
+`select()` never came back from a timed wait on a socket in the lab).
 
 ## Known limits
 
