@@ -14,7 +14,7 @@ edits over it, and builds.
     STOVE=.../stoves/os32-gcc16-open6 OUT=out ./build-amiga.sh
 
 The work tree is `~/.cache/gfopenboost/build` (`WORK=` to change it). A run
-that reaches the time cap (`BUDGET_TOTAL`, 840 s) stops cleanly and the next
+that reaches the time cap (`BUDGET_TOTAL`, 780 s) stops cleanly and the next
 run goes on from its objects. The result is `WORK/sdk`, packed as
 `OUT/gfopenboost-1.89.0-sdk.tar.xz`:
 

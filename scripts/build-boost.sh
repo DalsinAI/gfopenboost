@@ -98,7 +98,7 @@ failed=""
 for part in $(echo "$PARTS" | awk -F'|' 'NF>1 {print $1}'); do
     a="$LIB/libboost_$part.a"
     [ -f "$a" ] && continue
-    [ "$(left)" -gt 60 ] || { log "time cap: $part and later go on next run"; exit 0; }
+    [ "$(left)" -gt 180 ] || { log "time cap: $part and later go on next run"; exit 0; }
     defs=$(echo "$PARTS" | awk -F'|' -v p="$part" '$1==p {print $2}')
     l=$(libdir "$part")
     case "$part" in iostreams) [ -n "$ZINC" ] || { log "iostreams: no zlib.h, built without zlib/gzip"; } ;; esac
@@ -115,7 +115,7 @@ for part in $(echo "$PARTS" | awk -F'|' 'NF>1 {print $1}'); do
         ( ulimit -v ${CC_MEM_KB:-2500000} 2>/dev/null || true
           "$@" $defs -I"$B/libs/$l/src" -I"$B/libs/atomic/src" -c "$s" -o "$o.part" 2> "$o.err" && mv "$o.part" "$o" ) &
         while [ "$(jobs -p | wc -l)" -ge "$JOBS" ]; do sleep 1; done
-        [ "$(left)" -gt 45 ] || break
+        [ "$(left)" -gt 150 ] || break
     done
     wait
     n=0; miss=""

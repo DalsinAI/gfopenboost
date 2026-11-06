@@ -22,7 +22,7 @@ TC=${TOOLCHAIN:-"$STOVE/prefix"}
 WORK=${WORK:-"$HOME/.cache/gfopenboost/build"}
 OUT=${OUT:-"$WORK/out"}
 JOBS=${JOBS:-4}
-BUDGET=${BUDGET_TOTAL:-840}
+BUDGET=${BUDGET_TOTAL:-780}
 # extra include folders after the toolchain's own (the cloud check uses
 # OpenNDK's headers; a stove has its NDK already)
 EXTRA_INC=${EXTRA_INC:-}
