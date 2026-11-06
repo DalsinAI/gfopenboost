@@ -93,7 +93,10 @@ US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252, from our own tables) in
 
 `compat/src/` adds what libnix lacks, inside the part that needs it:
 `statvfs()` on dos.library `Info()` and `fchmod()` on `NameFromFH()` (Filesystem),
-C++-named `clock_gettime()`/`statvfs()` forwarders (libnix's headers
+a `clock_gettime()` on `gettimeofday()` (Thread and Chrono: libnix's reads
+the local-time Amiga clock without the time zone, so Boost's timed waits
+missed the pthread library's clock by the zone offset), C++-named
+`clock_gettime()`/`statvfs()` forwarders (libnix's headers
 declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
 `writev`/`if_nametoindex`/`pause` (Asio).
 

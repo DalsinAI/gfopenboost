@@ -53,7 +53,7 @@ fi
 PARTS='
 atomic|-DBOOST_ATOMIC_SOURCE -DBOOST_ATOMIC_STATIC_LINK|lock_pool.cpp
 charconv|-DBOOST_CHARCONV_SOURCE -DBOOST_CHARCONV_STATIC_LINK|from_chars.cpp to_chars.cpp
-chrono|-DBOOST_CHRONO_STATIC_LINK|chrono.cpp thread_clock.cpp process_cpu_clocks.cpp @amiga_clock.cpp
+chrono|-DBOOST_CHRONO_STATIC_LINK|chrono.cpp thread_clock.cpp process_cpu_clocks.cpp @amiga_clock.cpp @amiga_clock_c.c
 container|-DBOOST_CONTAINER_SOURCE -DBOOST_CONTAINER_STATIC_LINK|alloc_lib.c dlmalloc.cpp global_resource.cpp monotonic_buffer_resource.cpp pool_resource.cpp synchronized_pool_resource.cpp unsynchronized_pool_resource.cpp
 date_time|-DBOOST_DATE_TIME_SOURCE -DBOOST_DATE_TIME_STATIC_LINK|gregorian/greg_month.cpp
 filesystem|-DBOOST_FILESYSTEM_SOURCE -DBOOST_FILESYSTEM_STATIC_LINK -DBOOST_FILESYSTEM_NO_CXX20_ATOMIC_REF -DO_DIRECTORY=0|codecvt_error_category.cpp directory.cpp exception.cpp operations.cpp path.cpp path_traits.cpp portability.cpp unique_path.cpp utf8_codecvt_facet.cpp @amiga_statvfs.c @amiga_statvfs_cxx.cpp @amiga_fchmod.c
@@ -66,7 +66,7 @@ regex||@empty.cpp
 serialization|-DBOOST_SERIALIZATION_SOURCE -DBOOST_SERIALIZATION_STATIC_LINK|archive_exception.cpp basic_archive.cpp basic_iarchive.cpp basic_iserializer.cpp basic_oarchive.cpp basic_oserializer.cpp basic_pointer_iserializer.cpp basic_pointer_oserializer.cpp basic_serializer_map.cpp basic_text_iprimitive.cpp basic_text_oprimitive.cpp basic_xml_archive.cpp binary_iarchive.cpp binary_oarchive.cpp codecvt_null.cpp extended_type_info.cpp extended_type_info_no_rtti.cpp extended_type_info_typeid.cpp polymorphic_binary_iarchive.cpp polymorphic_binary_oarchive.cpp polymorphic_iarchive.cpp polymorphic_oarchive.cpp polymorphic_text_iarchive.cpp polymorphic_text_oarchive.cpp polymorphic_xml_iarchive.cpp polymorphic_xml_oarchive.cpp stl_port.cpp text_iarchive.cpp text_oarchive.cpp utf8_codecvt_facet.cpp void_cast.cpp xml_archive_exception.cpp xml_grammar.cpp xml_iarchive.cpp xml_oarchive.cpp
 wserialization|-DBOOST_WSERIALIZATION_SOURCE -DBOOST_SERIALIZATION_STATIC_LINK -DBOOST_WSERIALIZATION_STATIC_LINK|basic_text_wiprimitive.cpp basic_text_woprimitive.cpp binary_wiarchive.cpp binary_woarchive.cpp polymorphic_text_wiarchive.cpp polymorphic_text_woarchive.cpp polymorphic_xml_wiarchive.cpp polymorphic_xml_woarchive.cpp text_wiarchive.cpp text_woarchive.cpp xml_wgrammar.cpp xml_wiarchive.cpp xml_woarchive.cpp
 stacktrace_noop|-DBOOST_STACKTRACE_INTERNAL_BUILD_LIBS -DBOOST_STACKTRACE_LINK|noop.cpp
-thread|-DBOOST_THREAD_BUILD_LIB -DBOOST_THREAD_POSIX|pthread/thread.cpp pthread/once.cpp future.cpp
+thread|-DBOOST_THREAD_BUILD_LIB -DBOOST_THREAD_POSIX|pthread/thread.cpp pthread/once.cpp future.cpp @amiga_clock_c.c
 timer|-DBOOST_TIMER_SOURCE -DBOOST_TIMER_STATIC_LINK|cpu_timer.cpp auto_timers_construction.cpp
 url|-DBOOST_URL_SOURCE -DBOOST_URL_STATIC_LINK|@url
 asio|-DBOOST_ASIO_SEPARATE_COMPILATION|@asio_src.cpp @amiga_net.c
@@ -80,19 +80,22 @@ libdir() { case "$1" in wserialization) echo serialization ;; stacktrace_noop) e
 # (or removed, when a patch adds them) before the set is applied again.
 part_patches() {
     pd="$HERE/patches/parts/$1"; [ -d "$pd" ] || return 0
-    pkey=$(cat "$pd"/*.patch | sha256sum | cut -c1-16)
+    # the key covers the patches and a REV file (bump it to rebuild the part
+    # when only its PARTS line or compat sources changed)
+    pkey=$(cat "$pd"/* | sha256sum | cut -c1-16)
     [ "$(cat "$OBJ/$1/.pkey" 2>/dev/null)" = "$pkey" ] && return 0
-    for f in $(cat "$pd"/*.patch | sed -n 's|^+++ b/\([^[:space:]]*\).*|\1|p' | sort -u); do
+    pl=$(ls "$pd"/*.patch 2>/dev/null || true)
+    for f in $( [ -z "$pl" ] || cat $pl | sed -n 's|^+++ b/\([^[:space:]]*\).*|\1|p' | sort -u); do
         if [ -f "$B/$f.gfob-orig" ]; then cp "$B/$f.gfob-orig" "$B/$f"
         elif [ -f "$B/$f.gfob-new" ]; then rm -f "$B/$f"
         elif [ -f "$B/$f" ]; then cp "$B/$f" "$B/$f.gfob-orig"
         else : > "$B/$f.gfob-new"; fi
     done
-    for p in "$pd"/*.patch; do
+    for p in $pl; do
         patch -s -d "$B" -p1 --no-backup-if-mismatch < "$p" || { log "patch did not apply: $1/$(basename "$p")"; exit 1; }
     done
     rm -rf "$OBJ/$1"; rm -f "$LIB/libboost_$1.a"; mkdir -p "$OBJ/$1"; echo "$pkey" > "$OBJ/$1/.pkey"
-    log "$1: source edits $pkey applied"
+    log "$1: rebuilt for part key $pkey"
 }
 
 # generated sources (@name)
