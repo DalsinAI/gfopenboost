@@ -77,8 +77,9 @@ turns threads and `std::wstring` off. It merges what each port carried:
 - Asio: waits with `select()` (as on Symbian), wakes with a socket pair,
   and takes the network names from `amigaos_net.hpp`.
 
-`patches/src/` edits one compiled source: Atomic's lock pool aligns to 8
-bytes, the most an Amiga hunk file allows.
+`patches/src/` edits compiled sources: Atomic's lock pool aligns to 8
+bytes, the most an Amiga hunk file allows, and Filesystem's `/` adds no
+separator after a volume's colon (`"Work:" / "dir"` is `Work:dir`).
 
 `compat/src/` adds what libnix lacks, inside the part that needs it:
 `statvfs()` on dos.library `Info()` and `fchmod()` on `NameFromFH()` (Filesystem),
@@ -90,8 +91,8 @@ declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
 
 - Locale uses its std backend (C locale, UTF-8 and the codepages Boost
   knows); a backend on unicode.library and locale.library is the next step.
-- Filesystem paths are libnix's (on dos.library): `Work:dir/file` works as a
-  name, but `root_name()` does not know volumes.
+- Filesystem paths are libnix's (on dos.library): `Work:dir/file` works and
+  `/` joins after a volume, but `root_name()` does not know volumes yet.
 - Asio is IPv4 only, as the stack is.
 - `random_device` reads `/dev/urandom`, which AmigaOS does not have.
 

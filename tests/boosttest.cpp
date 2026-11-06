@@ -27,6 +27,7 @@
 #include <boost/atomic.hpp>
 #include <boost/asio.hpp>
 #include <cstdio>
+#include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -40,8 +41,14 @@ static void check(const char *what, bool ok, const std::string &detail = std::st
         failed++;
 }
 
+static const char *only = nullptr;   // argv[1]: run just that group
+
 template <class F> static void guarded(const char *what, F f)
 {
+    if (only && std::strcmp(only, what) != 0)
+        return;
+    std::printf("---- %s\n", what);
+    std::fflush(stdout);
     try {
         f();
     } catch (const std::exception &e) {
@@ -54,6 +61,9 @@ template <class F> static void guarded(const char *what, F f)
 int main(int argc, char **argv)
 {
     std::printf("boosttest: Boost %s\n", BOOST_LIB_VERSION);
+    std::fflush(stdout);
+    if (argc > 1)
+        only = argv[1];
 
     guarded("filesystem", [] {
         namespace fs = boost::filesystem;
@@ -99,7 +109,7 @@ int main(int argc, char **argv)
             && boost::regexecA(&re, "abbbc", 0, 0, 0) == 0); boost::regfreeA(&re);
     });
 
-    guarded("program_options", [&] {
+    guarded("program_options", [] {
         namespace po = boost::program_options;
         po::options_description d("o");
         d.add_options()("size", po::value<int>()->default_value(3), "size");
@@ -108,7 +118,6 @@ int main(int argc, char **argv)
         po::store(po::parse_command_line(2, av, d), vm);
         po::notify(vm);
         check("program_options", vm["size"].as<int>() == 7);
-        (void)argc; (void)argv;
     });
 
     guarded("json", [] {

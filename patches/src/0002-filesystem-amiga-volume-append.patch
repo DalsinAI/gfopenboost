@@ -1,0 +1,13 @@
+--- a/libs/filesystem/src/path.cpp	2026-11-06 09:25:54.328005328 +0000
++++ b/libs/filesystem/src/path.cpp	2026-11-06 09:25:54.349769844 +0000
+@@ -621,7 +621,9 @@
+ {
+     string_type::size_type size(p.m_pathname.size());
+     if (size > static_cast< string_type::size_type >(0) &&
+-#ifdef BOOST_WINDOWS_API
++#if defined(BOOST_WINDOWS_API) || defined(__amigaos__)
++        // AmigaOS: "Work:" / "dir" is "Work:dir"; a '/' after the colon
++        // would mean the volume's parent
+         p.m_pathname[size - 1] != colon &&
+ #endif
+         !detail::is_directory_separator(p.m_pathname[size - 1]))
