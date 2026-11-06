@@ -124,7 +124,7 @@ for part in $(echo "$PARTS" | awk -F'|' 'NF>1 {print $1}'); do
         [ -f "$o" ] || { n=$((n+1)); miss="$miss $o"; }
     done
     if [ "$n" -ne 0 ]; then
-        errs=$(for o in $miss; do [ -s "$o.err" ] && echo "$o"; done)
+        errs=$(for o in $miss; do [ -s "$o.err" ] && echo "$o"; done; true)
         if [ -z "$errs" ]; then log "time cap inside $part ($n files left), goes on next run"; exit 0; fi
         for o in $errs; do
             echo "FAIL $part $(basename "$o" .o)"
