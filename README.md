@@ -89,7 +89,10 @@ separator after a volume's colon (`"Work:" / "dir"` is `Work:dir`).
 `patches/parts/PART/` edits one part's sources, and a change there rebuilds
 only that part: Locale converts charsets without iconv or ICU (UTF-8,
 US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252, from our own tables) in
-`conv::to_utf`, `from_utf`, `between` and the converter classes.
+`conv::to_utf`, `from_utf`, `between` and the converter classes. Timer
+takes wall time from `gettimeofday()` (libnix's `times()` returns CPU
+milliseconds while `sysconf(_SC_CLK_TCK)` says 50, so `cpu_timer` read
+twenty times too long).
 
 `compat/src/` adds what libnix lacks, inside the part that needs it:
 `statvfs()` on dos.library `Info()` and `fchmod()` on `NameFromFH()` (Filesystem),

@@ -1,0 +1,46 @@
+--- a/libs/timer/src/cpu_timer.cpp	2026-11-06 17:12:23.554608151 +0000
++++ b/libs/timer/src/cpu_timer.cpp	2026-11-06 17:12:23.662796266 +0000
+@@ -28,6 +28,7 @@
+ #else
+ # include <unistd.h>
+ # include <sys/times.h>
++# include <sys/time.h>
+ #endif
+ 
+ using boost::timer::nanosecond_type;
+@@ -152,6 +153,27 @@
+     return tf;
+ }
+ 
++#if defined(__amigaos__)
++// AmigaOS (libnix): times() counts the task's CPU time in milliseconds and
++// returns that, not elapsed time, while sysconf(_SC_CLK_TCK) says 50; take
++// wall time from gettimeofday() and CPU time from times() in milliseconds.
++void get_cpu_times( boost::timer::cpu_times& current )
++{
++    current.wall = boost::timer::nanosecond_type( -1 );
++    current.user = boost::timer::nanosecond_type( -1 );
++    current.system = boost::timer::nanosecond_type( -1 );
++
++    struct timeval tv;
++    if( ::gettimeofday( &tv, 0 ) != 0 ) return;
++    current.wall = boost::timer::nanosecond_type( tv.tv_sec ) * INT64_C( 1000000000 )
++        + boost::timer::nanosecond_type( tv.tv_usec ) * 1000;
++
++    tms tm;
++    if( ::times( &tm ) == static_cast<clock_t>( -1 ) ) return;
++    current.user = boost::timer::nanosecond_type( tm.tms_utime + tm.tms_cutime ) * INT64_C( 1000000 );
++    current.system = boost::timer::nanosecond_type( tm.tms_stime + tm.tms_cstime ) * INT64_C( 1000000 );
++}
++#else
+ void get_cpu_times( boost::timer::cpu_times& current )
+ {
+     current.wall = boost::timer::nanosecond_type( -1 );
+@@ -171,6 +193,7 @@
+     current.system = boost::timer::nanosecond_type( tm.tms_stime + tm.tms_cstime ) * tf;
+     current.user = boost::timer::nanosecond_type( tm.tms_utime + tm.tms_cutime ) * tf;
+ }
++#endif
+ 
+ #endif
+ 

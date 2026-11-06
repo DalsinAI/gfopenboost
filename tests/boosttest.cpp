@@ -226,7 +226,7 @@ int main(int argc, char **argv)
         boost::timer::cpu_timer t;
         boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
         boost::timer::cpu_times e = t.elapsed();
-        check("timer wall >= 90 ms", e.wall >= 90000000LL, std::to_string((long long)(e.wall / 1000000)) + " ms");
+        check("timer wall 90..1000 ms", e.wall >= 90000000LL && e.wall < 1000000000LL, std::to_string((long long)(e.wall / 1000000)) + " ms");
     });
 
     guarded("container pmr", [] {
