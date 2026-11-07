@@ -79,8 +79,40 @@ turns threads and `std::wstring` off. It merges what each port carried:
   these are only "sometimes" lock free on m68k because the Amiga's chip bus
   cannot do CAS/TAS cycles, so it calls libatomic, which guards each
   operation; Boost.Atomic would otherwise refuse to build.
-- Asio: waits with `select()` (as on Symbian), wakes with a socket pair,
-  and takes the network names from `amigaos_net.hpp`.
+- Asio: waits through event.library (GFOpenEvent 1.1, `LIBS:`): one
+  `WaitSelect()` with a signal mask covers the program's sockets, timers,
+  Exec signals and MsgPorts, and a wake is a signal, not a socket pair
+  (`detail/amiga_event_reactor.hpp`, built from Asio's select reactor; C
+  calls in `compat/src/amiga_event.c`). The network names come from
+  `amigaos_net.hpp`. Programs need event.library 1 in `LIBS:`; without it
+  the first socket or timer throws `system_error` ("event.library").
+
+### Asio and the rest of the Amiga
+
+`boost/asio/amiga/exec_waiter.hpp` waits for Exec signals or a MsgPort in
+the same io_context, so an Intuition window, an ARexx port or a commodity
+runs in the program's one loop, with no polling timer:
+
+    boost::asio::io_context io;
+    boost::asio::exec_waiter w(io);
+    std::function<void()> wait_window = [&] {
+        w.async_wait_port(win->UserPort, [&](boost::system::error_code ec, unsigned long) {
+            if (ec) return;
+            while (auto *m = (struct IntuiMessage *)GetMsg(win->UserPort)) { /* ... */ ReplyMsg(&m->ExecMessage); }
+            wait_window();
+        });
+    };
+    wait_window();
+    w.async_wait_signals(SIGBREAKF_CTRL_C, [&](boost::system::error_code, unsigned long) { io.stop(); });
+    io.run();
+
+`async_wait_signals(mask, h)` calls `h(ec, got)` with the signals that
+came (the loop takes them, as `Wait()` does); `async_wait_port(port, h)`
+calls `h(ec, 1)` when a message is there, and leaves it on the port for
+the handler. Each wait is one-shot; `cancel()` (and the waiter's
+destructor) ends them with `operation_aborted`. C++14 or later. The event
+reactor is for the one-task build (the default); with
+`BOOST_ASIO_AMIGA_THREADS`, Asio keeps its `select()` reactor.
 
 `patches/src/` edits compiled sources: Atomic's lock pool aligns to 8
 bytes, the most an Amiga hunk file allows, and Filesystem's `/` adds no
@@ -103,7 +135,9 @@ missed the pthread library's clock by the zone offset), C++-named
 declare them without `extern "C"`), and `inet_ntop`/`inet_pton`/`readv`/
 `writev`/`if_nametoindex`/`pause` (Asio), and a `select()` for sockets
 straight onto bsdsocket.library's `WaitSelect()` (Asio: libnix's own
-`select()` never came back from a timed wait on a socket in the lab).
+`select()` never came back from a timed wait on a socket in the lab). The
+event.library headers that `amiga_event.c` uses are in `compat/include/`
+(as gfopensdk ships them).
 
 ## Known limits
 

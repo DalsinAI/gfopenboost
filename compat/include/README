@@ -1,0 +1,2 @@
+event.library 1.1 headers, as gfopensdk Include/ at 1667447 (gfopenevent f2269a7).
+Used only by compat/src/amiga_event.c, which opens the library itself.
