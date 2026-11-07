@@ -330,14 +330,23 @@ int main(int argc, char **argv)
           DeleteMsgPort(port);
           check("asio-amiga msgport", had); }
 
+        mark("asio-amiga post");
+        { io_context io; exec_waiter w(io); int ran = 0;
+          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit);
+          w.async_wait_signals(1ul << bit, [&](const error_code &, unsigned long) { ran |= 2; });
+          post(io, [&] { ran |= 1; Signal(FindTask(0), 1ul << bit); });
+          long long c0 = ms_std(); std::size_t nrun = io.run_for(std::chrono::seconds(3)); long long cdt = ms_std() - c0;
+          FreeSignal(bit);
+          check("asio-amiga post then signal", ran == 3, "ran=" + std::to_string(ran) + " n=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms"); }
+
         mark("asio-amiga cancel");
         { io_context io; exec_waiter w(io); error_code got_ec;
           BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit); unsigned long cgot = 0; int ncan = -1;
           w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long g) { got_ec = e; cgot = g; });
           post(io, [&] { ncan = (int)w.cancel(); });
-          io.run_for(std::chrono::seconds(3));
+          long long c0 = ms_std(); std::size_t nrun = io.run_for(std::chrono::seconds(3)); long long cdt = ms_std() - c0;
           FreeSignal(bit);
-          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot) + " n=" + std::to_string(ncan)); }
+          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot) + " n=" + std::to_string(ncan) + " ran=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms" + (io.stopped() ? " stopped" : "")); }
     });
 
     std::printf("boosttest: %d failed\n", failed);
