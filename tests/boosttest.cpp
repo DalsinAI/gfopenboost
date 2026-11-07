@@ -291,19 +291,20 @@ int main(int argc, char **argv)
         mark("asio-amiga tcp");
         { io_context io; ip::tcp::acceptor acc(io, ip::tcp::endpoint(ip::address_v4::loopback(), 0));
           ip::tcp::socket srv(io), cli(io); char rb[8] = {0}; bool ok_acc = false, ok_con = false, timeout = false; std::size_t n_read = 0;
+          std::string why;
           steady_timer guard(io, std::chrono::seconds(5));
           guard.async_wait([&](const error_code &e) { if (!e) { timeout = true; acc.close(); srv.close(); cli.close(); } });
           acc.async_accept(srv, [&](const error_code &e) {
-              ok_acc = !e;
-              if (!e) async_read(srv, buffer(rb, 5), [&](const error_code &e2, std::size_t n) { if (!e2) n_read = n; guard.cancel(); });
+              ok_acc = !e; if (e) why += " accept: " + e.message();
+              if (!e) async_read(srv, buffer(rb, 5), [&](const error_code &e2, std::size_t n) { if (e2) why += " read: " + e2.message(); n_read = n; guard.cancel(); });
           });
           cli.async_connect(acc.local_endpoint(), [&](const error_code &e) {
-              ok_con = !e;
-              if (!e) async_write(cli, buffer("hello", 5), [](const error_code &, std::size_t) {});
+              ok_con = !e; if (e) why += " connect: " + e.message();
+              if (!e) async_write(cli, buffer("hello", 5), [&](const error_code &e3, std::size_t) { if (e3) why += " write: " + e3.message(); });
           });
           io.run();
           check("asio-amiga tcp accept/connect/read", ok_acc && ok_con && n_read == 5 && std::string(rb) == "hello" && !timeout,
-                std::string(rb)); }
+                std::string(rb) + why + (timeout ? " timeout" : "") + (ok_acc ? " acc" : "") + (ok_con ? " con" : "") + " n=" + std::to_string(n_read)); }
 
         mark("asio-amiga signal");
         { io_context io; exec_waiter w(io);

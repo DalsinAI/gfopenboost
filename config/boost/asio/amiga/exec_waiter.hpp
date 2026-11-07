@@ -61,6 +61,7 @@ public:
     : executor_(ctx.get_executor()),
       reactor_(boost::asio::use_service<detail::amiga_event_reactor>(ctx))
   {
+    reactor_.init_task();   // so the io_context runs the reactor's wait
   }
 
   ~exec_waiter()

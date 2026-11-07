@@ -18,6 +18,7 @@
 #include <exec/types.h>
 #include <exec/ports.h>
 #include <utility/hooks.h>
+#include <exec/lists.h>
 #include <proto/exec.h>
 
 #define EVENT_BASE_NAME gfob_EventBase
@@ -192,9 +193,25 @@ long gfob_ev_run_once(struct gfob_ev *e, long usec)
     struct timeval tv;
     LONG r;
     int i, n = 0, bad = 0;
+    int poll = usec <= 0;
+    ULONG smask = e->sig_slot >= 0 ? e->rw[e->sig_slot].what : 0;
+    /* When event.library 1.1 doesn't wait (a zero timeout, or a port that
+     * already has a message), its WaitSelect() path keeps the mask it
+     * passed in as "the signals that came", so every watched signal would
+     * read as arrived. So a round that won't wait takes the signals itself
+     * and gives the loop no signal watch. A signal already here makes the
+     * round one that won't wait. */
+    if (smask && (SetSignal(0, 0) & smask))
+        poll = 1;
+    for (i = 0; !poll && i < e->nrw; i++)
+        if (e->rw[i].kind == EVK_PORT && !IsListEmpty(&e->rw[i].port->mp_MsgList))
+            poll = 1;
+    if (poll)
+        usec = 0;
     for (i = 0; i < e->nrw; i++) {
         struct gfob_rw *rw = &e->rw[i];
         rw->hook.h_Entry = (HOOKFUNC)gfob_rw_hook;
+        if (poll && rw->kind == EVK_SIGNAL) { rw->watch = 0; continue; }
         rw->hook.h_Data = rw;
         switch (rw->kind) {
         case EVK_SOCKET: rw->watch = EV_AddSocket(e->loop, rw->sock, rw->what, &rw->hook); break;
@@ -211,6 +228,8 @@ long gfob_ev_run_once(struct gfob_ev *e, long usec)
         tv.tv_usec = usec % 1000000;
         r = EV_RunOnce(e->loop, &tv);
     }
+    if (poll && smask && r >= 0)
+        e->rw[e->sig_slot].ready = SetSignal(0, smask) & smask;
     for (i = 0; i < e->nrw; i++) {
         struct gfob_rw *rw = &e->rw[i];
         EV_Remove(rw->watch);
