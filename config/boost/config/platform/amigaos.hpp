@@ -57,6 +57,13 @@
 #ifndef BOOST_ASIO_DISABLE_SERIAL_PORT
 #  define BOOST_ASIO_DISABLE_SERIAL_PORT
 #endif
+// The reactor waits through event.library 1 (LIBS:): sockets, Exec signals
+// and MsgPorts in one wait (boost/asio/amiga/exec_waiter.hpp). Only for the
+// one-task build; BOOST_ASIO_AMIGA_NO_EVENT keeps the plain select() reactor.
+#if defined(BOOST_ASIO_DISABLE_THREADS) && !defined(BOOST_ASIO_AMIGA_NO_EVENT) \
+  && !defined(BOOST_ASIO_HAS_AMIGA_EVENT)
+#  define BOOST_ASIO_HAS_AMIGA_EVENT 1
+#endif
 
 // libstdc++'s std::regex recurses once a character (GCC bug 86164), so use
 // Boost.Regex for anything long; it is header-only here.

@@ -69,7 +69,7 @@ stacktrace_noop|-DBOOST_STACKTRACE_INTERNAL_BUILD_LIBS -DBOOST_STACKTRACE_LINK|n
 thread|-DBOOST_THREAD_BUILD_LIB -DBOOST_THREAD_POSIX|pthread/thread.cpp pthread/once.cpp future.cpp @amiga_clock_c.c
 timer|-DBOOST_TIMER_SOURCE -DBOOST_TIMER_STATIC_LINK|cpu_timer.cpp auto_timers_construction.cpp
 url|-DBOOST_URL_SOURCE -DBOOST_URL_STATIC_LINK|@url
-asio|-DBOOST_ASIO_SEPARATE_COMPILATION|@asio_src.cpp @amiga_net.c @amiga_select.c
+asio|-DBOOST_ASIO_SEPARATE_COMPILATION|@asio_src.cpp @amiga_net.c @amiga_select.c @amiga_event.c
 system||@empty.cpp
 '
 # where a part's sources live
@@ -103,6 +103,8 @@ G="$WORK/gen"; mkdir -p "$G"
 printf '// Boost.Asio, separately compiled (programs define BOOST_ASIO_SEPARATE_COMPILATION)\n#include <boost/asio/impl/src.hpp>\n' > "$G/asio_src.cpp"
 printf '// Boost.System is header-only; this empty library keeps -lboost_system links working\nnamespace boost { namespace gfopenboost { int system_is_header_only = 1; } }\n' > "$G/empty.cpp"
 cp "$HERE"/compat/src/*.c "$HERE"/compat/src/*.cpp "$G/"
+# event.library headers for amiga_event.c only (compat/include)
+rm -rf "$G/include"; cp -R "$HERE/compat/include" "$G/include"; CF="$CF -I$G/include"
 
 # PART -> its source paths (absolute)
 sources() {

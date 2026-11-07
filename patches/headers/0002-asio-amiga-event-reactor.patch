@@ -1,0 +1,65 @@
+diff -ru a/boost/asio/detail/reactor.hpp b/boost/asio/detail/reactor.hpp
+--- a/boost/asio/detail/reactor.hpp	2026-11-07 13:49:42.516012455 +0000
++++ b/boost/asio/detail/reactor.hpp	2026-11-07 13:49:42.555595496 +0000
+@@ -17,7 +17,9 @@
+ 
+ #include <boost/asio/detail/config.hpp>
+ 
+-#if defined(BOOST_ASIO_HAS_IOCP) || defined(BOOST_ASIO_WINDOWS_RUNTIME)
++#if defined(BOOST_ASIO_HAS_AMIGA_EVENT)
++# include <boost/asio/detail/amiga_event_reactor.hpp>
++#elif defined(BOOST_ASIO_HAS_IOCP) || defined(BOOST_ASIO_WINDOWS_RUNTIME)
+ # include <boost/asio/detail/null_reactor.hpp>
+ #elif defined(BOOST_ASIO_HAS_IO_URING_AS_DEFAULT)
+ # include <boost/asio/detail/null_reactor.hpp>
+@@ -35,7 +37,9 @@
+ namespace asio {
+ namespace detail {
+ 
+-#if defined(BOOST_ASIO_HAS_IOCP) || defined(BOOST_ASIO_WINDOWS_RUNTIME)
++#if defined(BOOST_ASIO_HAS_AMIGA_EVENT)
++typedef amiga_event_reactor reactor;
++#elif defined(BOOST_ASIO_HAS_IOCP) || defined(BOOST_ASIO_WINDOWS_RUNTIME)
+ typedef null_reactor reactor;
+ #elif defined(BOOST_ASIO_HAS_IO_URING_AS_DEFAULT)
+ typedef null_reactor reactor;
+diff -ru a/boost/asio/detail/timer_scheduler.hpp b/boost/asio/detail/timer_scheduler.hpp
+--- a/boost/asio/detail/timer_scheduler.hpp	2026-11-07 13:49:42.523776211 +0000
++++ b/boost/asio/detail/timer_scheduler.hpp	2026-11-07 13:49:42.555721483 +0000
+@@ -30,6 +30,8 @@
+ # include <boost/asio/detail/kqueue_reactor.hpp>
+ #elif defined(BOOST_ASIO_HAS_DEV_POLL)
+ # include <boost/asio/detail/dev_poll_reactor.hpp>
++#elif defined(BOOST_ASIO_HAS_AMIGA_EVENT)
++# include <boost/asio/detail/amiga_event_reactor.hpp>
+ #else
+ # include <boost/asio/detail/select_reactor.hpp>
+ #endif
+diff -ru a/boost/asio/detail/timer_scheduler_fwd.hpp b/boost/asio/detail/timer_scheduler_fwd.hpp
+--- a/boost/asio/detail/timer_scheduler_fwd.hpp	2026-11-07 13:49:42.532098684 +0000
++++ b/boost/asio/detail/timer_scheduler_fwd.hpp	2026-11-07 13:49:42.555775694 +0000
+@@ -33,6 +33,8 @@
+ typedef class kqueue_reactor timer_scheduler;
+ #elif defined(BOOST_ASIO_HAS_DEV_POLL)
+ typedef class dev_poll_reactor timer_scheduler;
++#elif defined(BOOST_ASIO_HAS_AMIGA_EVENT)
++typedef class amiga_event_reactor timer_scheduler;
+ #else
+ typedef class select_reactor timer_scheduler;
+ #endif
+diff -ru a/boost/asio/impl/src.hpp b/boost/asio/impl/src.hpp
+--- a/boost/asio/impl/src.hpp	2026-11-07 13:49:42.540091053 +0000
++++ b/boost/asio/impl/src.hpp	2026-11-07 13:50:41.445329564 +0000
+@@ -56,7 +56,11 @@
+ #include <boost/asio/detail/impl/resolver_service_base.ipp>
+ #include <boost/asio/detail/impl/resolver_thread_pool.ipp>
+ #include <boost/asio/detail/impl/scheduler.ipp>
+-#include <boost/asio/detail/impl/select_reactor.ipp>
++#if defined(BOOST_ASIO_HAS_AMIGA_EVENT)
++# include <boost/asio/detail/impl/amiga_event_reactor.ipp>
++#else
++# include <boost/asio/detail/impl/select_reactor.ipp>
++#endif
+ #include <boost/asio/detail/impl/service_registry.ipp>
+ #include <boost/asio/detail/impl/signal_set_service.ipp>
+ #include <boost/asio/detail/impl/socket_ops.ipp>

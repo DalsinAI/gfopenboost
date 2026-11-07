@@ -25,6 +25,9 @@
 #include <boost/charconv.hpp>
 #include <boost/atomic.hpp>
 #include <boost/asio.hpp>
+#include <boost/asio/amiga/exec_waiter.hpp>
+#include <exec/ports.h>
+#include <proto/exec.h>
 #include <cstdio>
 #include <cstdarg>
 #include <cerrno>
@@ -41,8 +44,14 @@ static void check(const char *what, bool ok, const std::string &detail = std::st
 {
     std::printf("%s %s%s%s\n", ok ? "PASS" : "FAIL", what, detail.empty() ? "" : ": ", detail.c_str());
     std::fflush(stdout);
+    // also to a file closed after each line, readable while a test is stuck
+    if (FILE *f = std::fopen("T:boostcheck.txt", "a")) { std::fprintf(f, "%s %s %s\n", ok ? "PASS" : "FAIL", what, detail.c_str()); std::fclose(f); }
     if (!ok)
         failed++;
+}
+static void mark(const char *what)
+{
+    if (FILE *f = std::fopen("T:boostcheck.txt", "a")) { std::fprintf(f, "... %s\n", what); std::fclose(f); }
 }
 
 static const char *only = nullptr;   // argv[1]: run just that group
@@ -254,6 +263,90 @@ int main(int argc, char **argv)
         boost::system::error_code ec;
         auto a = boost::asio::ip::make_address("192.168.0.1", ec);
         check("asio address", !ec && a.to_string() == "192.168.0.1");
+    });
+
+    // The Amiga reactor (event.library): sockets, timers, Exec signals and
+    // MsgPorts in one wait.
+    guarded("asio-amiga", [] {
+        using namespace boost::asio;
+        using boost::system::error_code;
+        mark("asio-amiga timer");
+        { io_context io; steady_timer t(io, std::chrono::milliseconds(100));
+          long long t0 = ms_std(), dt = -1;
+          t.async_wait([&](const error_code &) { dt = ms_std() - t0; });
+          io.run();
+          check("asio-amiga timer 100 ms in 90..300", dt >= 90 && dt <= 300, std::to_string(dt) + " ms"); }
+
+        mark("asio-amiga udp");
+        { io_context io; ip::udp::socket a(io, ip::udp::endpoint(ip::address_v4::loopback(), 0));
+          ip::udp::socket b(io, ip::udp::v4());
+          char buf[16] = {0}; ip::udp::endpoint from; std::size_t got = 0; bool timeout = false;
+          steady_timer guard(io, std::chrono::seconds(3));
+          guard.async_wait([&](const error_code &e) { if (!e) { timeout = true; a.cancel(); } });
+          a.async_receive_from(buffer(buf, sizeof buf - 1), from, [&](const error_code &e, std::size_t n) { if (!e) got = n; guard.cancel(); });
+          b.send_to(buffer("ping", 4), a.local_endpoint());
+          io.run();
+          check("asio-amiga udp loopback", got == 4 && std::string(buf) == "ping" && !timeout, std::string(buf)); }
+
+        mark("asio-amiga tcp");
+        { io_context io; ip::tcp::acceptor acc(io, ip::tcp::endpoint(ip::address_v4::loopback(), 0));
+          ip::tcp::socket srv(io), cli(io); char rb[8] = {0}; bool ok_acc = false, ok_con = false, timeout = false; std::size_t n_read = 0;
+          std::string why;
+          steady_timer guard(io, std::chrono::seconds(5));
+          guard.async_wait([&](const error_code &e) { if (!e) { timeout = true; acc.close(); srv.close(); cli.close(); } });
+          acc.async_accept(srv, [&](const error_code &e) {
+              ok_acc = !e; if (e) why += " accept: " + e.message();
+              if (!e) async_read(srv, buffer(rb, 5), [&](const error_code &e2, std::size_t n) { if (e2) why += " read: " + e2.message(); n_read = n; guard.cancel(); });
+          });
+          cli.async_connect(acc.local_endpoint(), [&](const error_code &e) {
+              ok_con = !e; if (e) why += " connect: " + e.message();
+              if (!e) async_write(cli, buffer("hello", 5), [&](const error_code &e3, std::size_t) { if (e3) why += " write: " + e3.message(); });
+          });
+          io.run();
+          check("asio-amiga tcp accept/connect/read", ok_acc && ok_con && n_read == 5 && std::string(rb) == "hello" && !timeout,
+                std::string(rb) + why + (timeout ? " timeout" : "") + (ok_acc ? " acc" : "") + (ok_con ? " con" : "") + " n=" + std::to_string(n_read)); }
+
+        mark("asio-amiga signal");
+        { io_context io; exec_waiter w(io);
+          BYTE bit = AllocSignal(-1); unsigned long mask = 1ul << bit, got = 0; SetSignal(0, mask); long long t0 = ms_std(), dt = -1;
+          steady_timer t(io, std::chrono::milliseconds(40));
+          t.async_wait([&](const error_code &) { Signal(FindTask(0), mask); });
+          w.async_wait_signals(mask, [&](const error_code &e, unsigned long g) { if (!e) got = g; dt = ms_std() - t0; });
+          steady_timer guard(io, std::chrono::seconds(3)); guard.async_wait([&](const error_code &e) { if (!e) io.stop(); });
+          io.run_for(std::chrono::seconds(4));
+          FreeSignal(bit);
+          check("asio-amiga exec signal", got == mask && dt >= 30 && dt < 1000, std::to_string(dt) + " ms"); }
+
+        mark("asio-amiga port");
+        { io_context io; exec_waiter w(io);
+          struct MsgPort *port = CreateMsgPort(); struct Message msg; std::memset(&msg, 0, sizeof msg);
+          msg.mn_Length = sizeof msg; bool had = false;
+          steady_timer t(io, std::chrono::milliseconds(40));
+          t.async_wait([&](const error_code &) { PutMsg(port, &msg); });
+          w.async_wait_port(port, [&](const error_code &e, unsigned long) { if (!e) had = GetMsg(port) == &msg; });
+          steady_timer guard(io, std::chrono::seconds(3)); guard.async_wait([&](const error_code &e) { if (!e) io.stop(); });
+          io.run_for(std::chrono::seconds(4));
+          w.cancel(); if (!had) GetMsg(port);
+          DeleteMsgPort(port);
+          check("asio-amiga msgport", had); }
+
+        mark("asio-amiga post");
+        { io_context io; exec_waiter w(io); int ran = 0;
+          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit);
+          w.async_wait_signals(1ul << bit, [&](const error_code &, unsigned long) { ran |= 2; });
+          post(io, [&] { ran |= 1; Signal(FindTask(0), 1ul << bit); });
+          long long c0 = ms_std(); std::size_t nrun = io.run_for(std::chrono::seconds(3)); long long cdt = ms_std() - c0;
+          FreeSignal(bit);
+          check("asio-amiga post then signal", ran == 3, "ran=" + std::to_string(ran) + " n=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms"); }
+
+        mark("asio-amiga cancel");
+        { io_context io; exec_waiter w(io); error_code got_ec;
+          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit); unsigned long cgot = 0; int ncan = -1;
+          w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long g) { got_ec = e; cgot = g; });
+          post(io, [&] { ncan = (int)w.cancel(); });
+          long long c0 = ms_std(); std::size_t nrun = io.run_for(std::chrono::seconds(3)); long long cdt = ms_std() - c0;
+          FreeSignal(bit);
+          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot) + " n=" + std::to_string(ncan) + " ran=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms" + (io.stopped() ? " stopped" : "")); }
     });
 
     std::printf("boosttest: %d failed\n", failed);
