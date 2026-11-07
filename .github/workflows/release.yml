@@ -45,7 +45,7 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<EOF
           Boost 1.89.0 for AmigaOS 3 (68040, soft float): headers with the one Amiga config, 21 compiled parts as libboost_<part>.a and a CMake package (find_package(Boost 1.89 CONFIG)).
 
-          Built from ${GITHUB_SHA} with GFOpenAmigaGCC ${GCC_TAG}. boosttest (included) passed all 14 groups in a 68040 lab. See the README for linking (-latomic, -lpthread, -lsocket, BOOST_ASIO_SEPARATE_COMPILATION) and known limits.
+          Built from ${GITHUB_SHA} with GFOpenAmigaGCC ${GCC_TAG}. boosttest (included) passed all 15 groups in a 68040 lab. Asio waits with event.library (GFOpenEvent 1.1 or later in LIBS:), so sockets, timers, Exec signals and MsgPorts share one wait (boost::asio::exec_waiter). See the README for linking (-latomic, -lpthread, -lsocket, BOOST_ASIO_SEPARATE_COMPILATION) and known limits.
 
           Team 3
           EOF
