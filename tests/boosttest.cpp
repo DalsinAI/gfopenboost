@@ -82,9 +82,6 @@ static void dlog(const char *fmt, ...)
 }
 static long long ms_rt() { timespec t; clock_gettime(CLOCK_REALTIME, &t); return t.tv_sec * 1000LL + t.tv_nsec / 1000000; }
 static long long ms_tod() { timeval t; gettimeofday(&t, nullptr); return t.tv_sec * 1000LL + t.tv_usec / 1000; }
-extern "C" long gfob_ev_dbg[6];
-extern "C" long gfob_ev_dbg2[4];
-static std::string dbgev() { std::string r = "rx"; for (int i = 0; i < 4; i++) r += " " + std::to_string(gfob_ev_dbg2[i]); r += " ev"; for (int i = 0; i < 6; i++) r += " " + std::to_string(gfob_ev_dbg[i]); return r; }
 static long long ms_std() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 static long long ms_bst() { return boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now().time_since_epoch()).count(); }
 
@@ -337,11 +334,10 @@ int main(int argc, char **argv)
         { io_context io; exec_waiter w(io); int ran = 0;
           BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit);
           w.async_wait_signals(1ul << bit, [&](const error_code &, unsigned long) { ran |= 2; });
-          for (int i = 0; i < 6; i++) gfob_ev_dbg[i] = 0; for (int i = 0; i < 4; i++) gfob_ev_dbg2[i] = 0;
           post(io, [&] { ran |= 1; Signal(FindTask(0), 1ul << bit); });
           long long c0 = ms_std(); std::size_t nrun = io.run_for(std::chrono::seconds(3)); long long cdt = ms_std() - c0;
           FreeSignal(bit);
-          check("asio-amiga post then signal", ran == 3, dbgev() + " ran=" + std::to_string(ran) + " n=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms"); }
+          check("asio-amiga post then signal", ran == 3, "ran=" + std::to_string(ran) + " n=" + std::to_string(nrun) + " " + std::to_string(cdt) + " ms"); }
 
         mark("asio-amiga cancel");
         { io_context io; exec_waiter w(io); error_code got_ec;

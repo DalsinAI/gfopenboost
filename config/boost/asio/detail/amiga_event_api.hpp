@@ -13,7 +13,6 @@
 #define BOOST_ASIO_DETAIL_AMIGA_EVENT_API_HPP
 
 extern "C" {
-extern long gfob_ev_dbg2[4];
 struct gfob_ev;
 struct gfob_ev* gfob_ev_create(void);
 void gfob_ev_delete(struct gfob_ev*);
