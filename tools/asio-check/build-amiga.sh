@@ -22,10 +22,11 @@ S="$W/gfopenboost-1.89.0"; INC="$S/include"; LIB="$S/lib"
 cp -R "$HERE/config/boost/." "$INC/boost/"
 patch -s -d "$INC" -p1 --no-backup-if-mismatch < "$HERE/patches/headers/0002-asio-amiga-event-reactor.patch"
 printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"
-CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB -I$INC"
+XI=""; for d in ${EXTRA_INC:-}; do XI="$XI -idirafter $d"; done
+CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB -I$INC $XI"
 m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -c "$W/asio_src.cpp" -o "$W/asio_src.o"
 for c in amiga_net amiga_select amiga_event; do
-    m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -I"$INC" -I"$HERE/compat/include" -c "$HERE/compat/src/$c.c" -o "$W/$c.o"
+    m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -I"$INC" -I"$HERE/compat/include" $XI -c "$HERE/compat/src/$c.c" -o "$W/$c.o"
 done
 rm -f "$LIB/libboost_asio.a"
 m68k-amigaos-ar rcs "$LIB/libboost_asio.a" "$W/asio_src.o" "$W/amiga_net.o" "$W/amiga_select.o" "$W/amiga_event.o"
