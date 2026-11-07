@@ -248,7 +248,6 @@ void amiga_event_reactor::run(long usec, op_queue<operation>& ops)
     }
   }
 
-  gfob_ev_dbg2[0]++; gfob_ev_dbg2[1] = usec; gfob_ev_dbg2[2] = have_work_to_do; gfob_ev_dbg2[3] = (long)exec_waits_.size();
   if (!usec && !have_work_to_do)
     return;
 
