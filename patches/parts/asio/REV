@@ -1,1 +1,1 @@
-3 Asio reactor on event.library (compat/src/amiga_event.c), EINPROGRESS as EWOULDBLOCK
+4 Asio reactor on event.library (compat/src/amiga_event.c), EINPROGRESS as EWOULDBLOCK, FIONBIO for assigned sockets, io_context executor bits kept apart (2-byte alignment)

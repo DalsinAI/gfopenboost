@@ -1,0 +1,130 @@
+diff -ru a/boost/asio/impl/io_context.hpp b/boost/asio/impl/io_context.hpp
+--- a/boost/asio/impl/io_context.hpp	2026-11-07 16:36:16.547059156 +0000
++++ b/boost/asio/impl/io_context.hpp	2026-11-07 16:36:30.805282632 +0000
+@@ -157,6 +157,9 @@
+     static_cast<Allocator&>(*this) = static_cast<const Allocator&>(other);
+     io_context* old_io_context = context_ptr();
+     target_ = other.target_;
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++    bits_ = other.bits_;
++#endif
+     if (Bits & outstanding_work_tracked)
+     {
+       if (context_ptr())
+@@ -178,6 +181,9 @@
+     static_cast<Allocator&>(*this) = static_cast<Allocator&&>(other);
+     io_context* old_io_context = context_ptr();
+     target_ = other.target_;
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++    bits_ = other.bits_;
++#endif
+     if (Bits & outstanding_work_tracked)
+     {
+       other.target_ = 0;
+diff -ru a/boost/asio/io_context.hpp b/boost/asio/io_context.hpp
+--- a/boost/asio/io_context.hpp	2026-11-07 16:36:16.542861451 +0000
++++ b/boost/asio/io_context.hpp	2026-11-07 16:36:30.805153134 +0000
+@@ -16,6 +16,10 @@
+ #endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
+ 
+ #include <boost/asio/detail/config.hpp>
++
++#if defined(__amigaos__) && !defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++# define BOOST_ASIO_EXECUTOR_BITS_APART 1
++#endif
+ #include <cstddef>
+ #include <stdexcept>
+ #include <typeinfo>
+@@ -537,6 +541,9 @@
+   basic_executor_type(const basic_executor_type& other) noexcept
+     : Allocator(static_cast<const Allocator&>(other)),
+       target_(other.target_)
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      , bits_(other.bits_)
++#endif
+   {
+     if (Bits & outstanding_work_tracked)
+       if (context_ptr())
+@@ -547,6 +554,9 @@
+   basic_executor_type(basic_executor_type&& other) noexcept
+     : Allocator(static_cast<Allocator&&>(other)),
+       target_(other.target_)
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      , bits_(other.bits_)
++#endif
+   {
+     if (Bits & outstanding_work_tracked)
+       other.target_ = 0;
+@@ -850,6 +860,9 @@
+       const basic_executor_type& b) noexcept
+   {
+     return a.target_ == b.target_
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      && a.bits_ == b.bits_
++#endif
+       && static_cast<const Allocator&>(a) == static_cast<const Allocator&>(b);
+   }
+ 
+@@ -861,6 +874,9 @@
+       const basic_executor_type& b) noexcept
+   {
+     return a.target_ != b.target_
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      || a.bits_ != b.bits_
++#endif
+       || static_cast<const Allocator&>(a) != static_cast<const Allocator&>(b);
+   }
+ 
+@@ -951,6 +967,9 @@
+   explicit basic_executor_type(io_context& i) noexcept
+     : Allocator(),
+       target_(reinterpret_cast<uintptr_t>(&i))
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      , bits_(0)
++#endif
+   {
+     if (Bits & outstanding_work_tracked)
+       context_ptr()->impl_.work_started();
+@@ -960,13 +979,34 @@
+   basic_executor_type(io_context* i,
+       const Allocator& a, uintptr_t bits) noexcept
+     : Allocator(a),
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++      target_(reinterpret_cast<uintptr_t>(i)), bits_(bits)
++#else
+       target_(reinterpret_cast<uintptr_t>(i) | bits)
++#endif
+   {
+     if (Bits & outstanding_work_tracked)
+       if (context_ptr())
+         context_ptr()->impl_.work_started();
+   }
+ 
++#if defined(BOOST_ASIO_EXECUTOR_BITS_APART)
++  // An io_context here may be only 2-byte aligned (68k), so the low
++  // pointer bits are not free: the runtime bits are kept apart.
++  io_context* context_ptr() const noexcept
++  {
++    return reinterpret_cast<io_context*>(target_);
++  }
++
++  uintptr_t bits() const noexcept
++  {
++    return bits_;
++  }
++
++  // The underlying io_context, and the runtime bits.
++  uintptr_t target_;
++  uintptr_t bits_;
++#else
+   io_context* context_ptr() const noexcept
+   {
+     return reinterpret_cast<io_context*>(target_ & ~runtime_bits);
+@@ -979,6 +1019,7 @@
+ 
+   // The underlying io_context and runtime bits.
+   uintptr_t target_;
++#endif
+ };
+ 
+ /// Base class for all io_context services.

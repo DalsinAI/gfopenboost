@@ -188,9 +188,6 @@ int gfob_ev_add_port(struct gfob_ev *e, void *port)
  * Returns how many slots were ready, or -1 (errno ENOMEM, or EIO when
  * WaitSelect() failed: then every socket slot reads as ready, so Asio tries
  * each operation and gets the real error from it). */
-long gfob_ev_dbg2[4];
-long gfob_ev_dbg[6];                   /* debug: rounds, usec in, poll, r, n, nrw */
-
 long gfob_ev_run_once(struct gfob_ev *e, long usec)
 {
     struct timeval tv;
@@ -209,10 +206,8 @@ long gfob_ev_run_once(struct gfob_ev *e, long usec)
     for (i = 0; !poll && i < e->nrw; i++)
         if (e->rw[i].kind == EVK_PORT && !IsListEmpty(&e->rw[i].port->mp_MsgList))
             poll = 1;
-    gfob_ev_dbg[0]++; gfob_ev_dbg[1] = usec; gfob_ev_dbg[5] = e->nrw;
     if (poll)
         usec = 0;
-    gfob_ev_dbg[2] = poll;
     for (i = 0; i < e->nrw; i++) {
         struct gfob_rw *rw = &e->rw[i];
         rw->hook.h_Entry = (HOOKFUNC)gfob_rw_hook;
@@ -243,7 +238,6 @@ long gfob_ev_run_once(struct gfob_ev *e, long usec)
             rw->ready = rw->what;
         if (rw->ready) n++;
     }
-    gfob_ev_dbg[3] = r; gfob_ev_dbg[4] = n;
     if (r == EVERR_NOMEM) { errno = ENOMEM; return -1; }
     if (r == EVERR_SELECT) { errno = EIO; return -1; }
     return n;
