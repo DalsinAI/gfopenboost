@@ -45,6 +45,10 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/detail/amiga_event_reactor.hpp>
 #include <boost/asio/detail/amiga_wait_op.hpp>
+#include <boost/asio/detail/bind_handler.hpp>
+#include <boost/asio/detail/fenced_block.hpp>
+#include <boost/asio/detail/handler_alloc_helpers.hpp>
+#include <boost/asio/detail/handler_work.hpp>
 #include <boost/asio/detail/memory.hpp>
 #include <boost/system/error_code.hpp>
 
@@ -52,6 +56,50 @@
 
 namespace boost {
 namespace asio {
+namespace detail {
+
+template <typename Handler, typename IoExecutor>
+class amiga_wait_handler : public amiga_wait_op
+{
+public:
+  BOOST_ASIO_DEFINE_HANDLER_PTR(amiga_wait_handler);
+
+  amiga_wait_handler(Handler& h, const IoExecutor& io_ex)
+    : amiga_wait_op(&amiga_wait_handler::do_complete),
+      handler_(static_cast<Handler&&>(h)),
+      work_(handler_, io_ex)
+  {
+  }
+
+  static void do_complete(void* owner, operation* base,
+      const boost::system::error_code& /*ec*/,
+      std::size_t /*bytes_transferred*/)
+  {
+    amiga_wait_handler* h(static_cast<amiga_wait_handler*>(base));
+    ptr p = { boost::asio::detail::addressof(h->handler_), h, h };
+
+    handler_work<Handler, IoExecutor> w(
+        static_cast<handler_work<Handler, IoExecutor>&&>(h->work_));
+
+    detail::binder2<Handler, boost::system::error_code, unsigned long>
+      handler(h->handler_, h->ec_, h->got_);
+    p.h = boost::asio::detail::addressof(handler.handler_);
+    p.reset();
+
+    if (owner)
+    {
+      fenced_block b(fenced_block::half);
+      w.complete(handler, handler.handler_);
+    }
+  }
+
+private:
+  Handler handler_;
+  handler_work<Handler, IoExecutor> work_;
+};
+
+} // namespace detail
+
 class exec_waiter
 {
 public:

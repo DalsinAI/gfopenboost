@@ -332,12 +332,12 @@ int main(int argc, char **argv)
 
         mark("asio-amiga cancel");
         { io_context io; exec_waiter w(io); error_code got_ec;
-          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit); unsigned long cgot = 0;
+          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit); unsigned long cgot = 0; int ncan = -1;
           w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long g) { got_ec = e; cgot = g; });
-          post(io, [&] { w.cancel(); });
+          post(io, [&] { ncan = (int)w.cancel(); });
           io.run_for(std::chrono::seconds(3));
           FreeSignal(bit);
-          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot)); }
+          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot) + " n=" + std::to_string(ncan)); }
     });
 
     std::printf("boosttest: %d failed\n", failed);
