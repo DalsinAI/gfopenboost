@@ -44,8 +44,14 @@ static void check(const char *what, bool ok, const std::string &detail = std::st
 {
     std::printf("%s %s%s%s\n", ok ? "PASS" : "FAIL", what, detail.empty() ? "" : ": ", detail.c_str());
     std::fflush(stdout);
+    // also to a file closed after each line, readable while a test is stuck
+    if (FILE *f = std::fopen("T:boostcheck.txt", "a")) { std::fprintf(f, "%s %s %s\n", ok ? "PASS" : "FAIL", what, detail.c_str()); std::fclose(f); }
     if (!ok)
         failed++;
+}
+static void mark(const char *what)
+{
+    if (FILE *f = std::fopen("T:boostcheck.txt", "a")) { std::fprintf(f, "... %s\n", what); std::fclose(f); }
 }
 
 static const char *only = nullptr;   // argv[1]: run just that group
@@ -264,12 +270,14 @@ int main(int argc, char **argv)
     guarded("asio-amiga", [] {
         using namespace boost::asio;
         using boost::system::error_code;
+        mark("asio-amiga timer");
         { io_context io; steady_timer t(io, std::chrono::milliseconds(100));
           long long t0 = ms_std(), dt = -1;
           t.async_wait([&](const error_code &) { dt = ms_std() - t0; });
           io.run();
           check("asio-amiga timer 100 ms in 90..300", dt >= 90 && dt <= 300, std::to_string(dt) + " ms"); }
 
+        mark("asio-amiga udp");
         { io_context io; ip::udp::socket a(io, ip::udp::endpoint(ip::address_v4::loopback(), 0));
           ip::udp::socket b(io, ip::udp::v4());
           char buf[16] = {0}; ip::udp::endpoint from; std::size_t got = 0; bool timeout = false;
@@ -280,6 +288,7 @@ int main(int argc, char **argv)
           io.run();
           check("asio-amiga udp loopback", got == 4 && std::string(buf) == "ping" && !timeout, std::string(buf)); }
 
+        mark("asio-amiga tcp");
         { io_context io; ip::tcp::acceptor acc(io, ip::tcp::endpoint(ip::address_v4::loopback(), 0));
           ip::tcp::socket srv(io), cli(io); char rb[8] = {0}; bool ok_acc = false, ok_con = false, timeout = false; std::size_t n_read = 0;
           steady_timer guard(io, std::chrono::seconds(5));
@@ -296,30 +305,36 @@ int main(int argc, char **argv)
           check("asio-amiga tcp accept/connect/read", ok_acc && ok_con && n_read == 5 && std::string(rb) == "hello" && !timeout,
                 std::string(rb)); }
 
+        mark("asio-amiga signal");
         { io_context io; exec_waiter w(io);
           BYTE bit = AllocSignal(-1); unsigned long mask = 1ul << bit, got = 0; long long t0 = ms_std(), dt = -1;
           steady_timer t(io, std::chrono::milliseconds(40));
           t.async_wait([&](const error_code &) { Signal(FindTask(0), mask); });
           w.async_wait_signals(mask, [&](const error_code &e, unsigned long g) { if (!e) got = g; dt = ms_std() - t0; });
-          io.run();
+          steady_timer guard(io, std::chrono::seconds(3)); guard.async_wait([&](const error_code &e) { if (!e) io.stop(); });
+          io.run_for(std::chrono::seconds(4));
           FreeSignal(bit);
           check("asio-amiga exec signal", got == mask && dt >= 30 && dt < 1000, std::to_string(dt) + " ms"); }
 
+        mark("asio-amiga port");
         { io_context io; exec_waiter w(io);
           struct MsgPort *port = CreateMsgPort(); struct Message msg; std::memset(&msg, 0, sizeof msg);
           msg.mn_Length = sizeof msg; bool had = false;
           steady_timer t(io, std::chrono::milliseconds(40));
           t.async_wait([&](const error_code &) { PutMsg(port, &msg); });
           w.async_wait_port(port, [&](const error_code &e, unsigned long) { if (!e) had = GetMsg(port) == &msg; });
-          io.run();
+          steady_timer guard(io, std::chrono::seconds(3)); guard.async_wait([&](const error_code &e) { if (!e) io.stop(); });
+          io.run_for(std::chrono::seconds(4));
+          w.cancel(); if (!had) GetMsg(port);
           DeleteMsgPort(port);
           check("asio-amiga msgport", had); }
 
+        mark("asio-amiga cancel");
         { io_context io; exec_waiter w(io); error_code got_ec;
           BYTE bit = AllocSignal(-1);
           w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long) { got_ec = e; });
           post(io, [&] { w.cancel(); });
-          io.run();
+          io.run_for(std::chrono::seconds(3));
           FreeSignal(bit);
           check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message()); }
     });
