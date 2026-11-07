@@ -308,7 +308,7 @@ int main(int argc, char **argv)
 
         mark("asio-amiga signal");
         { io_context io; exec_waiter w(io);
-          BYTE bit = AllocSignal(-1); unsigned long mask = 1ul << bit, got = 0; long long t0 = ms_std(), dt = -1;
+          BYTE bit = AllocSignal(-1); unsigned long mask = 1ul << bit, got = 0; SetSignal(0, mask); long long t0 = ms_std(), dt = -1;
           steady_timer t(io, std::chrono::milliseconds(40));
           t.async_wait([&](const error_code &) { Signal(FindTask(0), mask); });
           w.async_wait_signals(mask, [&](const error_code &e, unsigned long g) { if (!e) got = g; dt = ms_std() - t0; });
@@ -332,12 +332,12 @@ int main(int argc, char **argv)
 
         mark("asio-amiga cancel");
         { io_context io; exec_waiter w(io); error_code got_ec;
-          BYTE bit = AllocSignal(-1);
-          w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long) { got_ec = e; });
+          BYTE bit = AllocSignal(-1); SetSignal(0, 1ul << bit); unsigned long cgot = 0;
+          w.async_wait_signals(1ul << bit, [&](const error_code &e, unsigned long g) { got_ec = e; cgot = g; });
           post(io, [&] { w.cancel(); });
           io.run_for(std::chrono::seconds(3));
           FreeSignal(bit);
-          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message()); }
+          check("asio-amiga cancel", got_ec == error::operation_aborted, got_ec.message() + " got=" + std::to_string(cgot)); }
     });
 
     std::printf("boosttest: %d failed\n", failed);

@@ -1,6 +1,7 @@
 #!/bin/sh
 # GFOpenBoost: a quick lab build for Asio work. Takes a published SDK
-# (TAG), puts this checkout's Asio headers and patch 0002 over it, builds
+# (TAG), puts this checkout's Asio headers and the header patches after
+# 0001 (which the SDK has) over it, builds
 # libboost_asio again and links boosttest against it, so a lab can try an
 # Asio change without the full build. The other parts don't include Asio.
 #   STOVE=.../stoves/os32-gcc16-open6 OUT=out tools/asio-check/build-amiga.sh
@@ -20,7 +21,10 @@ mkdir -p "$OUT"
 curl -fsSL "https://github.com/DalsinAI/gfopenboost/releases/download/$TAG/gfopenboost-1.89.0-sdk.tar.xz" | tar -C "$W" -xJf -
 S="$W/gfopenboost-1.89.0"; INC="$S/include"; LIB="$S/lib"
 cp -R "$HERE/config/boost/." "$INC/boost/"
-patch -s -d "$INC" -p1 --no-backup-if-mismatch < "$HERE/patches/headers/0002-asio-amiga-event-reactor.patch"
+for p in "$HERE"/patches/headers/*.patch; do
+    case "$(basename "$p")" in 0001-*) continue ;; esac
+    patch -s -d "$INC" -p1 --no-backup-if-mismatch < "$p"
+done
 printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"
 XI=""; for d in ${EXTRA_INC:-}; do XI="$XI -idirafter $d"; done
 CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB -I$INC $XI"
