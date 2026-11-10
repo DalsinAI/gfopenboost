@@ -29,17 +29,23 @@ printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"
 XI=""; for d in ${EXTRA_INC:-}; do XI="$XI -idirafter $d"; done
 CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB -I$INC $XI"
 m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -c "$W/asio_src.cpp" -o "$W/asio_src.o"
-for c in amiga_net amiga_select amiga_event; do
+for c in amiga_net amiga_select amiga_event amiga_ioctl; do
     m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -I"$INC" -I"$HERE/compat/include" $XI -c "$HERE/compat/src/$c.c" -o "$W/$c.o"
 done
 rm -f "$LIB/libboost_asio.a"
-m68k-amigaos-ar rcs "$LIB/libboost_asio.a" "$W/asio_src.o" "$W/amiga_net.o" "$W/amiga_select.o" "$W/amiga_event.o"
+m68k-amigaos-ar rcs "$LIB/libboost_asio.a" "$W/asio_src.o" "$W/amiga_net.o" "$W/amiga_select.o" "$W/amiga_event.o" "$W/amiga_ioctl.o"
 m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/boosttest" "$HERE/tests/boosttest.cpp" -L"$LIB" \
     -lboost_program_options -lboost_json -lboost_url -lboost_locale -lboost_filesystem -lboost_iostreams \
     -lboost_serialization -lboost_regex -lboost_timer -lboost_chrono -lboost_thread -lboost_date_time \
     -lboost_container -lboost_charconv -lboost_random -lboost_asio -lboost_atomic \
     -lpthread -lsocket -latomic 2> "$W/link.log" || { grep -E 'undefined|error' "$W/link.log" | sort -u | head -40; exit 1; }
 cp "$LIB/libboost_asio.a" "$OUT/"
+# SockCtl: ioctl()/fcntl() on sockets with amiga_ioctl.c; SockCtl-libnix:
+# the same with libnix's own (select() is amiga_select.c in both)
+m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl" "$HERE/tests/sockctl.c" \
+    "$W/amiga_ioctl.o" "$W/amiga_select.o" -lsocket
+m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl-libnix" "$HERE/tests/sockctl.c" \
+    "$W/amiga_select.o" -lsocket
 # the library the reactor waits through, for the lab's LIBS:
 EV=${EVENT_TAG:-v1.1-rc2}
 curl -fsSL -o "$W/ev.zip" "https://github.com/DalsinAI/gfopenevent/releases/download/$EV/GFOpenEvent-${EV#v}.zip"

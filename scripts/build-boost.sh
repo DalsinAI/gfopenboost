@@ -69,7 +69,7 @@ stacktrace_noop|-DBOOST_STACKTRACE_INTERNAL_BUILD_LIBS -DBOOST_STACKTRACE_LINK|n
 thread|-DBOOST_THREAD_BUILD_LIB -DBOOST_THREAD_POSIX|pthread/thread.cpp pthread/once.cpp future.cpp @amiga_clock_c.c
 timer|-DBOOST_TIMER_SOURCE -DBOOST_TIMER_STATIC_LINK|cpu_timer.cpp auto_timers_construction.cpp
 url|-DBOOST_URL_SOURCE -DBOOST_URL_STATIC_LINK|@url
-asio|-DBOOST_ASIO_SEPARATE_COMPILATION|@asio_src.cpp @amiga_net.c @amiga_select.c @amiga_event.c
+asio|-DBOOST_ASIO_SEPARATE_COMPILATION|@asio_src.cpp @amiga_net.c @amiga_select.c @amiga_event.c @amiga_ioctl.c
 system||@empty.cpp
 '
 # where a part's sources live

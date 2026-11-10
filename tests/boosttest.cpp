@@ -280,13 +280,18 @@ int main(int argc, char **argv)
         mark("asio-amiga udp");
         { io_context io; ip::udp::socket a(io, ip::udp::endpoint(ip::address_v4::loopback(), 0));
           ip::udp::socket b(io, ip::udp::v4());
-          char buf[16] = {0}; ip::udp::endpoint from; std::size_t got = 0; bool timeout = false;
+          char buf[16] = {0}; ip::udp::endpoint from; std::size_t got = 0; bool timeout = false; std::string why;
+          // FIONBIO through ioctl(), as every async op does first (amiga_ioctl.c;
+          // libnix's ioctl() gave EFAULT, 10 Nov 2026)
+          { error_code nbe; b.non_blocking(true, nbe);
+            check("asio-amiga non_blocking(true)", !nbe && b.non_blocking(), nbe.message());
+            b.non_blocking(false, nbe); }
           steady_timer guard(io, std::chrono::seconds(3));
           guard.async_wait([&](const error_code &e) { if (!e) { timeout = true; a.cancel(); } });
-          a.async_receive_from(buffer(buf, sizeof buf - 1), from, [&](const error_code &e, std::size_t n) { if (!e) got = n; guard.cancel(); });
+          a.async_receive_from(buffer(buf, sizeof buf - 1), from, [&](const error_code &e, std::size_t n) { if (!e) got = n; else why = e.message(); guard.cancel(); });
           b.send_to(buffer("ping", 4), a.local_endpoint());
           io.run();
-          check("asio-amiga udp loopback", got == 4 && std::string(buf) == "ping" && !timeout, std::string(buf)); }
+          check("asio-amiga udp loopback", got == 4 && std::string(buf) == "ping" && !timeout, std::string(buf) + why); }
 
         mark("asio-amiga tcp");
         { io_context io; ip::tcp::acceptor acc(io, ip::tcp::endpoint(ip::address_v4::loopback(), 0));
