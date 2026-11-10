@@ -39,6 +39,14 @@ static void loopback(struct sockaddr_in *a, int port)
     a->sin_addr.s_addr = htonl(0x7f000001UL);
 }
 
+static void rcvtimeo(int s)
+{
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+}
+
 static int wait_one(int s, int write, int secs)
 {
     fd_set f;
@@ -67,6 +75,9 @@ int main(void)
     loopback(&a, 23471);
     r = bind(s, (struct sockaddr *)&a, sizeof a);
     result("bind 127.0.0.1:23471", r == 0, r);
+    /* a receive timeout, so a FIONBIO that didn't take shows as a FAIL
+     * (ETIMEDOUT after 1 s) rather than a hang */
+    rcvtimeo(s);
 
     errno = 0; r = fcntl(s, F_GETFD, 0);
     result("fcntl F_GETFD is 0", r == 0, r);
@@ -147,6 +158,7 @@ int main(void)
     as = accept(ls, NULL, NULL);
     result("accept", as >= 0, as);
     if (as >= 0) {
+        rcvtimeo(as);
         r = fcntl(as, F_SETFL, O_NONBLOCK);
         errno = 0; n = recv(as, buf, sizeof buf, 0);
         result("accepted socket: recv empty EWOULDBLOCK", r == 0 && n == -1 && errno == EWOULDBLOCK, n);
