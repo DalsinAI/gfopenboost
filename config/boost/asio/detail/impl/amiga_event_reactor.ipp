@@ -43,7 +43,7 @@ amiga_event_reactor::amiga_event_reactor(boost::asio::execution_context& ctx)
     // event.library 1 (LIBS:) is the reactor's wait; no fallback.
     boost::system::error_code ec(errno ? errno : ENOSYS,
         boost::asio::error::get_system_category());
-    boost::asio::detail::throw_error(ec, "event.library");
+    boost::asio::detail::throw_error(ec, gfob_ev_error());
   }
 }
 

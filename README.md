@@ -85,7 +85,9 @@ turns threads and `std::wstring` off. It merges what each port carried:
   (`detail/amiga_event_reactor.hpp`, built from Asio's select reactor; C
   calls in `compat/src/amiga_event.c`). The network names come from
   `amigaos_net.hpp`. Programs need event.library 1 in `LIBS:`; without it
-  the first socket or timer throws `system_error` ("event.library").
+  the first socket or timer throws `system_error` whose what() starts
+  "event.library (version 1) not found in LIBS:" (its code is ENOSYS), and
+  that line goes to stderr once as well.
 - Asio's io_context executor keeps its two flags apart from the
   io_context pointer (patch 0004): upstream hides them in the pointer's low
   bits, and a 68k io_context can sit on a 2-byte boundary. Accepted and
