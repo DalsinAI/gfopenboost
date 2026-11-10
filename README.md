@@ -69,7 +69,7 @@ turns threads and `std::wstring` off. It merges what each port carried:
 | --- | --- |
 | KiCad (`compat/boost_amiga_platform.hpp`) | pthreads, gettimeofday, sched_yield; Thread's condition variables on the real-time clock |
 | Poedit (`boost/amigaos.hpp`, `amiga-nocancel.h`) | posix_features, and pthread.h's cancellation-point macros (`read`, `close`, ...) dropped before any C++ uses those names |
-| aMule | Asio on one task (`BOOST_ASIO_DISABLE_THREADS`: a bsdsocket base belongs to one task), no serial ports, the socket-pair select interrupter, the POSIX network names libnix lacks (IPv4 only) |
+| aMule | Asio on one task (`BOOST_ASIO_DISABLE_THREADS`: a bsdsocket base belongs to one task), no serial ports, the socket-pair select interrupter, the POSIX network names libnix lacks (IPv4 only), and POSIX `ioctl()`/`fcntl()` for sockets (`compat/src/amiga_ioctl.c`: libnix's `ioctl()` takes ixemul's five-argument form, so Asio's `ioctl(fd, FIONBIO, &on)` failed with EFAULT; its `fcntl()` is a stub) |
 | FileZilla | Boost.Regex in place of libstdc++'s `std::regex` (GCC bug 86164) |
 
 `patches/headers/` edits Boost's headers:
