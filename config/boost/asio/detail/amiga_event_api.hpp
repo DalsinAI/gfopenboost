@@ -15,6 +15,8 @@
 extern "C" {
 struct gfob_ev;
 struct gfob_ev* gfob_ev_create(void);
+// why gfob_ev_create() last failed, e.g. "event.library (version 1) not found in LIBS:"
+const char* gfob_ev_error(void);
 void gfob_ev_delete(struct gfob_ev*);
 void gfob_ev_wake(struct gfob_ev*);
 void gfob_ev_begin(struct gfob_ev*);

@@ -78,13 +78,30 @@ static APTR gfob_make_loop(void *sockbase)
     return EV_CreateLoop(EVT_SocketBase, (ULONG)sockbase, EVT_BreakStops, FALSE, TAG_DONE);
 }
 
+/* Why gfob_ev_create() last failed, for the reactor's system_error and
+ * the program's log: a bare ENOSYS ("Function not implemented") sent
+ * people looking at the network stack, not at LIBS:. */
+static const char *gfob_ev_why = "event.library";
+
+const char *gfob_ev_error(void)
+{
+    return gfob_ev_why;
+}
+
 struct gfob_ev *gfob_ev_create(void)
 {
     struct gfob_ev *e;
     if (!gfob_EventBase && !(gfob_EventBase = OpenLibrary((CONST_STRPTR)EVENTNAME, 1))) {
+        static int told;
+        gfob_ev_why = "event.library (version 1) not found in LIBS:";
+        if (!told) {
+            told = 1;
+            fprintf(stderr, "%s\n", gfob_ev_why);
+        }
         errno = ENOSYS;
         return 0;
     }
+    gfob_ev_why = "event.library";
     if ((e = (struct gfob_ev *)calloc(1, sizeof *e))) {
         e->sockbase = gfob_sockbase();
         e->sig_slot = -1;
