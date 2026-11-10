@@ -5,7 +5,7 @@
 # Copyright (c) 2026 AmiCradle Team
 # Distributed under the Boost Software License, Version 1.0.
 set -eu
-TAG=${TAG:-v1.89.0-rc1}
+TAG=${TAG:-v1.89.0-rc3}
 OUT=${OUT:-out}
 U="https://github.com/DalsinAI/gfopenboost/releases/download/$TAG"
 mkdir -p "$OUT"
