@@ -9,7 +9,7 @@
 # Distributed under the Boost Software License, Version 1.0.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-TAG=${TAG:-v1.89.0-rc1}
+TAG=${TAG:-v1.89.0-rc3}
 STOVE=${STOVE:-"$HOME/AmiCradle/stoves/os32-gcc16-open6"}
 TC=${TOOLCHAIN:-"$STOVE/prefix"}
 OUT=${OUT:-out}
