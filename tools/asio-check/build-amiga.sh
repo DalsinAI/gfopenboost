@@ -54,7 +54,12 @@ m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl-libnix" "$HE
     "$W/amiga_select.o" -lsocket
 # the library the reactor waits through, for the lab's LIBS:
 EV=${EVENT_TAG:-v1.1-rc2}
+# v1.1-rc2's zip, as gfamigaamule's amule.lock pins it; another EVENT_TAG
+# needs its EVENT_SHA256
+case "$EV" in v1.1-rc2) EVS=${EVENT_SHA256:-3bbb04429ecc850982b6cbcaf9ba629a06d914b6b951d6b69cd66c33c36c8ca7} ;;
+              *) EVS=${EVENT_SHA256:?EVENT_SHA256 for $EV} ;; esac
 curl -fsSL -o "$W/ev.zip" "https://github.com/DalsinAI/gfopenevent/releases/download/$EV/GFOpenEvent-${EV#v}.zip"
+echo "$EVS  $W/ev.zip" | sha256sum -c - >/dev/null || { echo "GFOpenEvent $EV: zip checksum differs"; exit 1; }
 (cd "$W" && unzip -q ev.zip) && cp "$W/GFOpenEvent/Libs/event.library" "$OUT/"
 echo "asio-check: $TAG + $(cd "$HERE" && git rev-parse --short HEAD 2>/dev/null || echo tree)"
 ls -l "$OUT"
