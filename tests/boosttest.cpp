@@ -277,6 +277,17 @@ int main(int argc, char **argv)
           io.run();
           check("asio-amiga timer 100 ms in 90..300", dt >= 90 && dt <= 300, std::to_string(dt) + " ms"); }
 
+        mark("asio-amiga resolve");
+        { io_context io; ip::tcp::resolver r(io); std::string got, why; bool ran = false;
+          // patch 0005: no worker thread; the lookup runs on this task and
+          // the handler comes from io.run(), not from async_resolve()
+          r.async_resolve("127.0.0.1", "80", [&](const error_code &e, ip::tcp::resolver::results_type res) {
+              ran = true; if (e) why = e.message();
+              for (auto const &x : res) got = x.endpoint().address().to_string(); });
+          bool early = ran;
+          io.run();
+          check("asio-amiga async_resolve on one task", !early && ran && got == "127.0.0.1", got + why); }
+
         mark("asio-amiga udp");
         { io_context io; ip::udp::socket a(io, ip::udp::endpoint(ip::address_v4::loopback(), 0));
           ip::udp::socket b(io, ip::udp::v4());

@@ -1,0 +1,25 @@
+--- a/boost/asio/detail/impl/resolver_thread_pool.ipp
++++ b/boost/asio/detail/impl/resolver_thread_pool.ipp
+@@ -96,6 +96,14 @@
+ 
+ void resolver_thread_pool::start_resolve_op(resolve_op* op)
+ {
++#if defined(BOOST_ASIO_DISABLE_THREADS)
++  // GFOpenBoost: one task (a bsdsocket.library base belongs to the task that
++  // opened it), so no worker thread. Do the lookup here, blocking, as the
++  // worker would (any owner but scheduler_ makes the op resolve); its
++  // completion is posted back to scheduler_ and runs from the io_context.
++  scheduler_.work_started();
++  op->complete(&work_scheduler_, boost::system::error_code(), 0);
++#else
+   if (scheduler_locking_)
+   {
+     start_work_threads();
+@@ -107,6 +115,7 @@
+     op->ec_ = boost::asio::error::operation_not_supported;
+     scheduler_.post_immediate_completion(op, false);
+   }
++#endif
+ }
+ 
+ void resolver_thread_pool::start_work_threads()
