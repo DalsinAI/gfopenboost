@@ -10,7 +10,7 @@
 # Distributed under the Boost Software License, Version 1.0.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-TAG=${TAG:-v1.89.0-rc1}
+TAG=${TAG:-v1.89.0-rc3}
 STOVE=${STOVE:-"$HOME/AmiCradle/stoves/os32-gcc16-open6"}
 TC=${TOOLCHAIN:-"$STOVE/prefix"}
 OUT=${OUT:-out}
@@ -24,6 +24,8 @@ S="$W/gfopenboost-1.89.0"; INC="$S/include"; LIB="$S/lib"
 cp -R "$HERE/config/boost/." "$INC/boost/"
 for p in "$HERE"/patches/headers/*.patch; do
     case "$(basename "$p")" in 0001-*) continue ;; esac
+    # a release SDK may have the patch already (rc3 has 0002-0004)
+    if patch -s -R --dry-run -d "$INC" -p1 < "$p" >/dev/null 2>&1; then continue; fi
     patch -s -d "$INC" -p1 --no-backup-if-mismatch < "$p"
 done
 printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"

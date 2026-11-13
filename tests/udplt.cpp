@@ -2,8 +2,9 @@
 // boosttest's "asio-amiga udp" covers one async_receive_from on loopback;
 // libtorrent's udp_socket instead binds 0.0.0.0, goes non-blocking, waits
 // with async_wait(wait_read) and drains with receive_from() until
-// would_block. Local service discovery and UPnP join multicast groups, and
-// interfaces are listed with SIOCGIFCONF. One line a check, as boosttest,
+// would_block; those are checks. Local service discovery's multicast group
+// and SIOCGIFCONF are reported as INFO lines: GFOpenSocket refuses both by
+// design, and GFOpenTorrent does without them. One line a check, as boosttest,
 // and "udplt: N failed" at the end; the return code is 0 only when all
 // passed. Builds on the host too (g++ -std=c++17 tests/udplt.cpp -pthread)
 // so the checks themselves are tested where a stack is known good.
@@ -170,13 +171,16 @@ int main()
             const auto group = asio::ip::make_address_v4("239.192.152.143");
             error_code ec;
             s.set_option(asio::ip::multicast::join_group(group), ec);
-            check("LSD join_group 239.192.152.143", !ec, msg(ec));
+            // GFOpenSocket opens only mDNS's group to the guest (policy of
+            // 3 Oct 2026), so LSD's join and send are refused there; libtorrent
+            // carries on without LSD. Reported, not failed.
+            info("LSD join_group 239.192.152.143", ec ? ec.message() : "ok");
             s.set_option(asio::ip::multicast::enable_loopback(true), ec);
             check("LSD enable_loopback", !ec, msg(ec));
             s.set_option(asio::ip::multicast::hops(32), ec);
             check("LSD hops 32", !ec, msg(ec));
             s.send_to(asio::buffer("BT-SEARCH", 9), udp::endpoint(group, 6771), 0, ec);
-            check("LSD send_to group", !ec, msg(ec));
+            info("LSD send_to group", ec ? ec.message() : "ok");
             char buf[64];
             std::size_t n = 0;
             error_code re;
@@ -226,10 +230,12 @@ int main()
             }
         }
         if (s >= 0) ::close(s);
-        check("SIOCGIFCONF lists an IPv4 interface", r == 0 && v4 > 0,
-              r == 0 ? std::to_string(v4) + ":" + names : std::string("errno ") + std::strerror(err));
+        // GFOpenSocket answers EOPNOTSUPP; GFOpenTorrent lists interfaces
+        // with Roadshow's ObtainInterfaceList()/QueryInterfaceTagList()
+        // instead. Reported, not failed.
+        info("SIOCGIFCONF", r == 0 ? std::to_string(v4) + " IPv4:" + names : std::string("errno ") + std::strerror(err));
 #else
-        check("SIOCGIFCONF defined", false, "not in the headers");
+        info("SIOCGIFCONF", "not in the headers");
 #endif
     }
 
