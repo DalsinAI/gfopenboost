@@ -98,6 +98,13 @@ turns threads and `std::wstring` off. It merges what each port carried:
   io_context pointer (patch 0004): upstream hides them in the pointer's low
   bits, and a 68k io_context can sit on a 2-byte boundary. Accepted and
   assigned sockets use FIONBIO, not fcntl (patch 0003).
+- Asio's `async_resolve` on one task (patch 0005): upstream hands each
+  lookup to a worker thread, which the one-task build can't start (the
+  constructor threw "thread: Operation not supported", or the lookup came
+  back `operation_not_supported`). The lookup now runs where it is started,
+  blocking as `getaddrinfo()` does, and its handler is posted to the
+  io_context like any other completion. libtorrent looks up trackers this
+  way.
 
 ### Asio and the rest of the Amiga
 
