@@ -4,12 +4,13 @@
 # 0001 (which the SDK has) over it, builds
 # libboost_asio again and links boosttest against it, so a lab can try an
 # Asio change without the full build. The other parts don't include Asio.
+# Also links UDPLT (tests/udplt.cpp), the UDP checks GFOpenTorrent needs.
 #   STOVE=.../stoves/os32-gcc16-open6 OUT=out tools/asio-check/build-amiga.sh
 # Copyright (c) 2026 AmiCradle Team
 # Distributed under the Boost Software License, Version 1.0.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-TAG=${TAG:-v1.89.0-rc1}
+TAG=${TAG:-v1.89.0-rc3}
 STOVE=${STOVE:-"$HOME/AmiCradle/stoves/os32-gcc16-open6"}
 TC=${TOOLCHAIN:-"$STOVE/prefix"}
 OUT=${OUT:-out}
@@ -23,6 +24,8 @@ S="$W/gfopenboost-1.89.0"; INC="$S/include"; LIB="$S/lib"
 cp -R "$HERE/config/boost/." "$INC/boost/"
 for p in "$HERE"/patches/headers/*.patch; do
     case "$(basename "$p")" in 0001-*) continue ;; esac
+    # a release SDK may have the patch already (rc3 has 0002-0004)
+    if patch -s -R --dry-run -d "$INC" -p1 < "$p" >/dev/null 2>&1; then continue; fi
     patch -s -d "$INC" -p1 --no-backup-if-mismatch < "$p"
 done
 printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"
@@ -40,6 +43,9 @@ m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/boosttest" "$H
     -lboost_container -lboost_charconv -lboost_random -lboost_asio -lboost_atomic \
     -lpthread -lsocket -latomic 2> "$W/link.log" || { grep -E 'undefined|error' "$W/link.log" | sort -u | head -40; exit 1; }
 cp "$LIB/libboost_asio.a" "$OUT/"
+# UDPLT: UDP as libtorrent uses it (async_wait + drain, multicast, SIOCGIFCONF)
+m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/UDPLT" "$HERE/tests/udplt.cpp" -L"$LIB" \
+    -lboost_asio -lpthread -lsocket -latomic 2> "$W/udplt.log" || { grep -E 'undefined|error' "$W/udplt.log" | sort -u | head -40; exit 1; }
 # SockCtl: ioctl()/fcntl() on sockets with amiga_ioctl.c; SockCtl-libnix:
 # the same with libnix's own (select() is amiga_select.c in both)
 m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl" "$HERE/tests/sockctl.c" \
@@ -48,7 +54,12 @@ m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl-libnix" "$HE
     "$W/amiga_select.o" -lsocket
 # the library the reactor waits through, for the lab's LIBS:
 EV=${EVENT_TAG:-v1.1-rc2}
+# v1.1-rc2's zip, as gfamigaamule's amule.lock pins it; another EVENT_TAG
+# needs its EVENT_SHA256
+case "$EV" in v1.1-rc2) EVS=${EVENT_SHA256:-3bbb04429ecc850982b6cbcaf9ba629a06d914b6b951d6b69cd66c33c36c8ca7} ;;
+              *) EVS=${EVENT_SHA256:?EVENT_SHA256 for $EV} ;; esac
 curl -fsSL -o "$W/ev.zip" "https://github.com/DalsinAI/gfopenevent/releases/download/$EV/GFOpenEvent-${EV#v}.zip"
+echo "$EVS  $W/ev.zip" | sha256sum -c - >/dev/null || { echo "GFOpenEvent $EV: zip checksum differs"; exit 1; }
 (cd "$W" && unzip -q ev.zip) && cp "$W/GFOpenEvent/Libs/event.library" "$OUT/"
 echo "asio-check: $TAG + $(cd "$HERE" && git rev-parse --short HEAD 2>/dev/null || echo tree)"
 ls -l "$OUT"
