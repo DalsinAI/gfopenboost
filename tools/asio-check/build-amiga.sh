@@ -4,6 +4,7 @@
 # 0001 (which the SDK has) over it, builds
 # libboost_asio again and links boosttest against it, so a lab can try an
 # Asio change without the full build. The other parts don't include Asio.
+# Also links UDPLT (tests/udplt.cpp), the UDP checks GFOpenTorrent needs.
 #   STOVE=.../stoves/os32-gcc16-open6 OUT=out tools/asio-check/build-amiga.sh
 # Copyright (c) 2026 AmiCradle Team
 # Distributed under the Boost Software License, Version 1.0.
@@ -40,6 +41,9 @@ m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/boosttest" "$H
     -lboost_container -lboost_charconv -lboost_random -lboost_asio -lboost_atomic \
     -lpthread -lsocket -latomic 2> "$W/link.log" || { grep -E 'undefined|error' "$W/link.log" | sort -u | head -40; exit 1; }
 cp "$LIB/libboost_asio.a" "$OUT/"
+# UDPLT: UDP as libtorrent uses it (async_wait + drain, multicast, SIOCGIFCONF)
+m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/UDPLT" "$HERE/tests/udplt.cpp" -L"$LIB" \
+    -lboost_asio -lpthread -lsocket -latomic 2> "$W/udplt.log" || { grep -E 'undefined|error' "$W/udplt.log" | sort -u | head -40; exit 1; }
 # SockCtl: ioctl()/fcntl() on sockets with amiga_ioctl.c; SockCtl-libnix:
 # the same with libnix's own (select() is amiga_select.c in both)
 m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -o "$OUT/SockCtl" "$HERE/tests/sockctl.c" \

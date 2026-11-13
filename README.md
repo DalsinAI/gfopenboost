@@ -26,6 +26,12 @@ run goes on from its objects. The result is `WORK/sdk`, packed as
 | `boost.txt` | the parts built, with sizes |
 
 `OUT/boosttest` uses every part; run it in a lab (`T:` must be writable).
+`tools/asio-check/build-amiga.sh` also links `UDPLT` (`tests/udplt.cpp`):
+UDP as libtorrent-rasterbar uses it (bind with reuse_address, non-blocking,
+`async_wait(wait_read)` then `receive_from` until `would_block`, the LSD
+multicast group, `SIOCGIFCONF`). It builds on the host as well:
+`g++ -std=c++17 tests/udplt.cpp -pthread`. Both need `event.library` in
+`LIBS:`; without it every Asio socket call fails with ENOSYS.
 
 ## Using it
 
