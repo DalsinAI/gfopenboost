@@ -126,6 +126,39 @@ int main(void)
     m.msg_iov = iov; m.msg_iovlen = 2;
     errno = 0; r = recvmsg(s, &m, 0);
     result("recvmsg scatters into two iovecs", r == 9 && !memcmp(h1, "ping", 4) && !memcmp(h2, "-pong", 5), r);
+    /* the name recvmsg gives is the sender's own port, as its getsockname
+     * says: uTP answers to it, so a wrong one is a peer never heard */
+    {
+        struct sockaddr_in me;
+        socklen_t ml = sizeof me;
+        memset(&me, 0, sizeof me);
+        r = getsockname(t, (struct sockaddr *)&me, &ml);
+        result("recvmsg name is the sender's getsockname", r == 0 && m.msg_namelen >= 8
+               && from.sin_addr.s_addr == htonl(0x7f000001UL) && from.sin_port == me.sin_port && me.sin_port != 0,
+               ntohs(from.sin_port));
+    }
+    {
+        int u = socket(AF_INET, SOCK_DGRAM, 0);
+        struct sockaddr_in ua;
+        loopback(&ua, 23473);
+        r = u >= 0 ? bind(u, (struct sockaddr *)&ua, sizeof ua) : -1;
+        result("bind a sender to 127.0.0.1:23473", r == 0, r);
+        memset(&m, 0, sizeof m);
+        iov[0].iov_base = "uTP"; iov[0].iov_len = 3;
+        m.msg_name = (void *)&a; m.msg_namelen = sizeof a;
+        m.msg_iov = iov; m.msg_iovlen = 1;
+        errno = 0; r = sendmsg(u, &m, 0);
+        result("sendmsg from the bound sender", r == 3, r);
+        wait_one(s, 0, 2);
+        memset(&from, 0, sizeof from);
+        memset(&m, 0, sizeof m);
+        iov[0].iov_base = buf; iov[0].iov_len = sizeof buf;
+        m.msg_name = (void *)&from; m.msg_namelen = sizeof from;
+        m.msg_iov = iov; m.msg_iovlen = 1;
+        errno = 0; r = recvmsg(s, &m, 0);
+        result("recvmsg name is the bound port 23473", r == 3 && ntohs(from.sin_port) == 23473, ntohs(from.sin_port));
+        if (u >= 0) close(u);
+    }
 
     errno = 0; r = fcntl(s, F_SETFL, 0);
     result("fcntl F_SETFL 0 (blocking)", r == 0, r);
@@ -162,6 +195,33 @@ int main(void)
         r = fcntl(as, F_SETFL, O_NONBLOCK);
         errno = 0; n = recv(as, buf, sizeof buf, 0);
         result("accepted socket: recv empty EWOULDBLOCK", r == 0 && n == -1 && errno == EWOULDBLOCK, n);
+        /* A stream socket takes what fits and says how much: libtorrent
+         * writes a 16 KiB block and its header in one sendmsg, and reads
+         * into buffers bigger than one transfer. EMSGSIZE is for datagrams. */
+        {
+            static char big[20000], back[20000];
+            struct iovec bv[2];
+            int got = 0, tries;
+            for (n = 0; n < (int)sizeof big; n++) big[n] = (char)(n * 7);
+            bv[0].iov_base = big; bv[0].iov_len = 10000;
+            bv[1].iov_base = big + 10000; bv[1].iov_len = 10000;
+            memset(&m, 0, sizeof m);
+            m.msg_iov = bv; m.msg_iovlen = 2;
+            errno = 0; r = sendmsg(cs, &m, 0);
+            result("TCP sendmsg 20000 bytes: some, not EMSGSIZE", r > 0 && r <= 20000, r);
+            for (tries = 0; r > 0 && got < r && tries < 50; tries++) {
+                wait_one(as, 0, 1);
+                /* two iovecs over the room left, together over 16 KiB at first */
+                bv[0].iov_base = back + got; bv[0].iov_len = (sizeof back - got) / 2;
+                bv[1].iov_base = back + got + bv[0].iov_len; bv[1].iov_len = sizeof back - got - bv[0].iov_len;
+                memset(&m, 0, sizeof m);
+                m.msg_iov = bv; m.msg_iovlen = 2;
+                errno = 0; n = recvmsg(as, &m, 0);
+                if (n > 0) got += n;
+                else if (!(n < 0 && errno == EWOULDBLOCK)) break;
+            }
+            result("TCP recvmsg 20000-byte buffers: all of it back", r > 0 && got == r && !memcmp(big, back, got), n);
+        }
         close(as);
     }
     close(cs);
