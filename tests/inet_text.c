@@ -90,6 +90,17 @@ int main(void)
         errno = 0;
         check("ntop6 too small a buffer: ENOSPC", inet_ntop(AF_INET6, a, t, 2) == NULL && errno == ENOSPC, "");
         errno = 0;
+        {
+            static const char *bad[] = { "1.2.x", "1.2.3.4x", "1.2.3", "9.9.9.256" };
+            unsigned char g[16], o[16];
+            int k;
+            for (k = 0; k < 4; k++) {
+                memset(g, 0xAA, sizeof g);
+                memcpy(o, g, sizeof g);
+                check("refused v4 leaves the buffer alone", inet_pton(AF_INET, bad[k], g) == 0 && !memcmp(g, o, 16), bad[k]);
+                check("refused v6 leaves the buffer alone", inet_pton(AF_INET6, bad[k], g) == 0 && !memcmp(g, o, 16), bad[k]);
+            }
+        }
         check("another family: EAFNOSUPPORT", inet_pton(12345, "1", a) == -1 && errno == EAFNOSUPPORT, "");
     }
     printf("inet_text: %d failed\n", failed);

@@ -26,8 +26,9 @@
 #define INET6_ADDRSTRLEN 46
 #endif
 
-static int pton4(const char *src, unsigned char *b)
+static int pton4(const char *src, unsigned char *out)
 {
+    unsigned char b[4]; /* the caller's buffer is left alone on failure */
     int i;
     for (i = 0; i < 4; i++) {
         unsigned v = 0;
@@ -41,7 +42,9 @@ static int pton4(const char *src, unsigned char *b)
         b[i] = (unsigned char)v;
         if (i < 3 && *src++ != '.') return 0;
     }
-    return *src == 0;
+    if (*src) return 0;
+    memcpy(out, b, 4);
+    return 1;
 }
 
 static int hexval(char c)
