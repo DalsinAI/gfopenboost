@@ -32,11 +32,11 @@ printf '#include <boost/asio/impl/src.hpp>\n' > "$W/asio_src.cpp"
 XI=""; for d in ${EXTRA_INC:-}; do XI="$XI -idirafter $d"; done
 CXXF="$CPU -std=gnu++17 -D_DEFAULT_SOURCE -DBOOST_ALL_NO_LIB -I$INC $XI"
 m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -c "$W/asio_src.cpp" -o "$W/asio_src.o"
-for c in amiga_net amiga_select amiga_event amiga_ioctl; do
+for c in amiga_net amiga_inet amiga_select amiga_event amiga_ioctl; do
     m68k-amigaos-gcc $CPU -std=gnu99 -D_DEFAULT_SOURCE -I"$INC" -I"$HERE/compat/include" $XI -c "$HERE/compat/src/$c.c" -o "$W/$c.o"
 done
 rm -f "$LIB/libboost_asio.a"
-m68k-amigaos-ar rcs "$LIB/libboost_asio.a" "$W/asio_src.o" "$W/amiga_net.o" "$W/amiga_select.o" "$W/amiga_event.o" "$W/amiga_ioctl.o"
+m68k-amigaos-ar rcs "$LIB/libboost_asio.a" "$W/asio_src.o" "$W/amiga_net.o" "$W/amiga_inet.o" "$W/amiga_select.o" "$W/amiga_event.o" "$W/amiga_ioctl.o"
 m68k-amigaos-g++ $CXXF -DBOOST_ASIO_SEPARATE_COMPILATION -o "$OUT/boosttest" "$HERE/tests/boosttest.cpp" -L"$LIB" \
     -lboost_program_options -lboost_json -lboost_url -lboost_locale -lboost_filesystem -lboost_iostreams \
     -lboost_serialization -lboost_regex -lboost_timer -lboost_chrono -lboost_thread -lboost_date_time \
