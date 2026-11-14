@@ -1,0 +1,16 @@
+# Host checks of GFOpenBoost's plain-C compat code on every pull request.
+name: host-tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: inet_text (amiga_inet.c against the C library)
+        run: |
+          gcc -std=gnu99 -Wall -Wextra -Werror tests/inet_text.c compat/src/amiga_inet.c -ldl -o inet_text
+          ./inet_text

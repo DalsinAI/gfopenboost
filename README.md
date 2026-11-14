@@ -165,7 +165,12 @@ event.library headers that `amiga_event.c` uses are in `compat/include/`
   backend on unicode.library and locale.library are the next step.
 - Filesystem paths are libnix's (on dos.library): `Work:dir/file` works and
   `/` joins after a volume, but `root_name()` does not know volumes yet.
-- Asio is IPv4 only, as the stack is.
+- Asio's sockets are IPv4 only, as the stack is. Address text is both:
+  `inet_pton()`/`inet_ntop()` (`compat/src/amiga_inet.c`) read and write
+  IPv6 text too, so parsing an IPv6 literal (libtorrent does one at
+  start-up) doesn't throw. `tests/inet_text.c` checks them on a host
+  against the C library's: `gcc -std=gnu99 tests/inet_text.c
+  compat/src/amiga_inet.c -ldl`.
 - `random_device` reads `/dev/urandom`, which AmigaOS does not have.
 
 ## Next: a shared library
